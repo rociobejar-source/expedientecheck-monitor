@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
@@ -874,23 +874,16 @@ let totalCount      = 0;
 let hasNextPage     = false;
 const PAGE_SIZE     = 100;
 
-let filtroNivel        = '';   // nivel_gobierno_nombre (for cascading UI only)
+let filtroNivel        = '';   // nivel_gobierno (código: G, M, R, etc.)
 let filtroDepartamento = '';   // departamento_nombre
 let filtroProvincia    = '';   // provincia_nombre
 let filtroEjecutora    = '';   // ejecutora code (TEXT)
 let filtroAlerta       = '';   // alerta value
 
 // ── FECHA ────────────────────────────────────────────────────
-async function setFechaHoy() {
-  try {
-    const res = await fetch(`${API}/api/fecha`);
-    if (!res.ok) throw new Error('No se pudo obtener la fecha del backend');
-    const data = await res.json();
-    document.getElementById('fecha-hoy').textContent = data.fecha;
-  } catch (e) {
-    document.getElementById('fecha-hoy').textContent =
-      new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
-  }
+function setFechaHoy() {
+  document.getElementById('fecha-hoy').textContent =
+    new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 setFechaHoy();
 
@@ -969,12 +962,16 @@ function disableSelect(id, placeholder) {
 function showGroup(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
 function hideGroup(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 
-// ── POBLAR FILTROS CASCADA (desde cat_entidades) ──────────────
+// ── POBLAR FILTROS CASCADA (desde ejecucion_nacional) ───────────
 async function poblarNivel() {
   try {
-    const data = await sbGet('cat_entidades?select=nivel_gobierno_nombre&limit=1000');
-    const vals = [...new Set(data.map(r => r.nivel_gobierno_nombre).filter(Boolean))].sort();
-    fillSelect('filter-nivel', vals, '— Todos —');
+    const data = await sbGet('ejecucion_nacional?select=nivel_gobierno,nivel_gobierno_nombre&pim=gt.0&limit=5000');
+    const map = new Map();
+    data.forEach(r => { if (r.nivel_gobierno && r.nivel_gobierno_nombre) map.set(r.nivel_gobierno, r.nivel_gobierno_nombre); });
+    const pairs = [...map.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+    fillSelectPairs('filter-nivel', pairs, '— Todos —');
   } catch (e) {
     console.warn('poblarNivel:', e.message);
   }
@@ -983,8 +980,8 @@ async function poblarNivel() {
 async function poblarDepartamento() {
   disableSelect('filter-departamento', '— Cargando... —');
   try {
-    let url = 'cat_entidades?select=departamento_nombre&limit=2000';
-    if (filtroNivel) url += `&nivel_gobierno_nombre=eq.${encodeURIComponent(filtroNivel)}`;
+    let url = 'ejecucion_nacional?select=departamento_nombre&pim=gt.0&limit=5000';
+    if (filtroNivel) url += `&nivel_gobierno=eq.${encodeURIComponent(filtroNivel)}`;
     const data = await sbGet(url);
     const vals = [...new Set(data.map(r => r.departamento_nombre).filter(Boolean))].sort();
     fillSelect('filter-departamento', vals, '— Todos —');
@@ -997,8 +994,8 @@ async function poblarDepartamento() {
 async function poblarProvincia() {
   disableSelect('filter-provincia', '— Cargando... —');
   try {
-    let url = 'cat_entidades?select=provincia_nombre&limit=2000';
-    if (filtroNivel)        url += `&nivel_gobierno_nombre=eq.${encodeURIComponent(filtroNivel)}`;
+    let url = 'ejecucion_nacional?select=provincia_nombre&pim=gt.0&limit=5000';
+    if (filtroNivel)        url += `&nivel_gobierno=eq.${encodeURIComponent(filtroNivel)}`;
     if (filtroDepartamento) url += `&departamento_nombre=eq.${encodeURIComponent(filtroDepartamento)}`;
     const data = await sbGet(url);
     const vals = [...new Set(data.map(r => r.provincia_nombre).filter(Boolean))].sort();
@@ -1012,8 +1009,8 @@ async function poblarProvincia() {
 async function poblarEjecutora() {
   disableSelect('filter-entidad', '— Cargando... —');
   try {
-    let url = 'cat_entidades?select=ejecutora_nombre,ejecutora&limit=2000';
-    if (filtroNivel)        url += `&nivel_gobierno_nombre=eq.${encodeURIComponent(filtroNivel)}`;
+    let url = 'ejecucion_nacional?select=ejecutora_nombre,ejecutora&pim=gt.0&limit=5000';
+    if (filtroNivel)        url += `&nivel_gobierno=eq.${encodeURIComponent(filtroNivel)}`;
     if (filtroDepartamento) url += `&departamento_nombre=eq.${encodeURIComponent(filtroDepartamento)}`;
     if (filtroProvincia)    url += `&provincia_nombre=eq.${encodeURIComponent(filtroProvincia)}`;
     const data = await sbGet(url);
@@ -1033,6 +1030,7 @@ async function poblarEjecutora() {
 async function cargarKPIs() {
   try {
     const body = {};
+    if (filtroNivel)        body.p_nivel        = filtroNivel;
     if (filtroDepartamento) body.p_departamento = filtroDepartamento;
     if (filtroProvincia)    body.p_provincia    = filtroProvincia;
     if (filtroEjecutora)    body.p_ejecutora    = String(filtroEjecutora);
@@ -1090,6 +1088,7 @@ async function cargarKPIs() {
 // ── CONSTRUIR QUERY PARAMS ────────────────────────────────────
 function buildParams(extra = '') {
   const parts = ['pim=gt.0'];
+  if (filtroNivel)        parts.push(`nivel_gobierno=eq.${encodeURIComponent(filtroNivel)}`);
   if (filtroDepartamento) parts.push(`departamento_nombre=eq.${encodeURIComponent(filtroDepartamento)}`);
   if (filtroProvincia)    parts.push(`provincia_nombre=eq.${encodeURIComponent(filtroProvincia)}`);
   if (filtroEjecutora)    parts.push(`ejecutora=eq.${encodeURIComponent(filtroEjecutora)}`);
