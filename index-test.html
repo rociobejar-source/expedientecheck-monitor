@@ -982,16 +982,16 @@ async function poblarNivel() {
   }
 }
 
-// Filtro 1 post-nivel para E y R: pliego_nombre (Ministerio / GR)
+// Filtro 1 post-nivel para E y R: pliego_nombre
 async function poblarPliego() {
-  const LABELS = { E: 'Ministerio / Sector', R: 'Gobierno Regional' };
-  const label = LABELS[filtroNivel] || 'Sector';
-  disableSelect('filter-sector', `— Cargando ${label}... —`);
+  const LABELS = { E: 'Entidad / Programa', R: 'Gobierno Regional' };
+  const label = LABELS[filtroNivel] || 'Entidad';
+  disableSelect('filter-sector', `— Cargando... —`);
   try {
     const url = `ejecucion_nacional?select=pliego_nombre&pim=gt.0&limit=5000&nivel_gobierno=eq.${encodeURIComponent(filtroNivel)}`;
     const data = await sbGet(url);
     const vals = [...new Set(data.map(r => r.pliego_nombre).filter(Boolean))].sort();
-    fillSelect('filter-sector', vals, '— Todos —');
+    fillSelect('filter-sector', vals, '— Todas —');
     document.querySelector('#group-sector label').textContent = label;
     showGroup('group-sector');
   } catch (e) {
@@ -1056,7 +1056,7 @@ async function cargarKPIs() {
     if (filtroDepartamento) body.p_departamento = filtroDepartamento;
     if (filtroProvincia)    body.p_provincia    = filtroProvincia;
     if (filtroEjecutora)    body.p_ejecutora    = String(filtroEjecutora);
-    if (filtroPliego)       body.p_pliego       = filtroPliego;
+    // p_pliego no existe en get_kpis_nacional – el filtro pliego_nombre solo aplica a la tabla.
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_kpis_nacional`, {
       method: 'POST',
@@ -1290,8 +1290,8 @@ document.getElementById('filter-sector').addEventListener('change', async e => {
   disableSelect('filter-entidad',      '— Todas —'); hideGroup('group-entidad');
   if (filtroPliego) {
     if (filtroNivel === 'E') {
-      // E: Sector → directo a Ejecutora
-      await poblarEjecutora();
+      // E: Entidad seleccionada → fin de cascada (ejecutora_nombre es null en BD)
+      // El filtro pliego_nombre ya se aplica en buildParams → tabla se actualiza con refresh()
     } else if (filtroNivel === 'R') {
       // R: GR → Departamento
       await poblarDepartamento();
