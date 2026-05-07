@@ -874,7 +874,8 @@ let totalCount      = 0;
 let hasNextPage     = false;
 const PAGE_SIZE     = 100;
 
-let filtroNivel        = '';   // nivel_gobierno (código: G, M, R, etc.)
+let filtroNivel        = '';   // nivel_gobierno (E, R, M)
+let filtroPliego       = '';   // pliego_nombre  (Ministerio para E; GR para R)
 let filtroDepartamento = '';   // departamento_nombre
 let filtroProvincia    = '';   // provincia_nombre
 let filtroEjecutora    = '';   // ejecutora code (TEXT)
@@ -1038,6 +1039,7 @@ async function cargarKPIs() {
     if (filtroDepartamento) body.p_departamento = filtroDepartamento;
     if (filtroProvincia)    body.p_provincia    = filtroProvincia;
     if (filtroEjecutora)    body.p_ejecutora    = String(filtroEjecutora);
+    if (filtroPliego)       body.p_pliego       = filtroPliego;
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_kpis_nacional`, {
       method: 'POST',
@@ -1093,6 +1095,7 @@ async function cargarKPIs() {
 function buildParams(extra = '') {
   const parts = ['pim=gt.0'];
   if (filtroNivel)        parts.push(`nivel_gobierno=eq.${encodeURIComponent(filtroNivel)}`);
+  if (filtroPliego)       parts.push(`pliego_nombre=eq.${encodeURIComponent(filtroPliego)}`);
   if (filtroDepartamento) parts.push(`departamento_nombre=eq.${encodeURIComponent(filtroDepartamento)}`);
   if (filtroProvincia)    parts.push(`provincia_nombre=eq.${encodeURIComponent(filtroProvincia)}`);
   if (filtroEjecutora)    parts.push(`ejecutora=eq.${encodeURIComponent(filtroEjecutora)}`);
@@ -1235,18 +1238,47 @@ function actualizarBtnPdf() {
 }
 
 // ── EVENTOS DE FILTROS CASCADA ────────────────────────────────
+
+// Helpers: resetear todos los filtros secundarios y ocultar sus grupos
+function resetFiltrosSecundarios() {
+  filtroPliego = ''; filtroDepartamento = ''; filtroProvincia = ''; filtroEjecutora = '';
+  disableSelect('filter-sector',       '— Todos —'); hideGroup('group-sector');
+  disableSelect('filter-departamento', '— Todos —'); hideGroup('group-departamento');
+  disableSelect('filter-provincia',    '— Todas —'); hideGroup('group-provincia');
+  disableSelect('filter-entidad',      '— Todas —'); hideGroup('group-entidad');
+}
+
 document.getElementById('filter-nivel').addEventListener('change', async e => {
   filtroNivel = e.target.value;
-  filtroDepartamento = ''; filtroProvincia = ''; filtroEjecutora = '';
-  disableSelect('filter-provincia', '— Todas —');
-  disableSelect('filter-entidad',   '— Todas —');
-  hideGroup('group-provincia');
-  hideGroup('group-entidad');
-  if (filtroNivel) {
+  resetFiltrosSecundarios();
+  if (filtroNivel === 'E') {
+    // E: Sector → Ejecutora
+    await poblarPliego();
+  } else if (filtroNivel === 'R') {
+    // R: GR (pliego) → Departamento → Ejecutora
+    await poblarPliego();
+  } else if (filtroNivel === 'M') {
+    // M: Departamento → Provincia → Municipalidad
     await poblarDepartamento();
-  } else {
-    disableSelect('filter-departamento', '— Todos —');
-    hideGroup('group-departamento');
+  }
+  refresh();
+});
+
+// Sector / GR (pliego_nombre) — solo para E y R
+document.getElementById('filter-sector').addEventListener('change', async e => {
+  filtroPliego = e.target.value;
+  filtroDepartamento = ''; filtroProvincia = ''; filtroEjecutora = '';
+  disableSelect('filter-departamento', '— Todos —'); hideGroup('group-departamento');
+  disableSelect('filter-provincia',    '— Todas —'); hideGroup('group-provincia');
+  disableSelect('filter-entidad',      '— Todas —'); hideGroup('group-entidad');
+  if (filtroPliego) {
+    if (filtroNivel === 'E') {
+      // E: Sector → directo a Ejecutora
+      await poblarEjecutora();
+    } else if (filtroNivel === 'R') {
+      // R: GR → Departamento
+      await poblarDepartamento();
+    }
   }
   refresh();
 });
@@ -1254,13 +1286,16 @@ document.getElementById('filter-nivel').addEventListener('change', async e => {
 document.getElementById('filter-departamento').addEventListener('change', async e => {
   filtroDepartamento = e.target.value;
   filtroProvincia = ''; filtroEjecutora = '';
-  disableSelect('filter-entidad', '— Todas —');
-  hideGroup('group-entidad');
+  disableSelect('filter-provincia', '— Todas —'); hideGroup('group-provincia');
+  disableSelect('filter-entidad',   '— Todas —'); hideGroup('group-entidad');
   if (filtroDepartamento) {
-    await poblarProvincia();
-  } else {
-    disableSelect('filter-provincia', '— Todas —');
-    hideGroup('group-provincia');
+    if (filtroNivel === 'M') {
+      // M: Departamento → Provincia
+      await poblarProvincia();
+    } else if (filtroNivel === 'R') {
+      // R: Departamento → Ejecutora
+      await poblarEjecutora();
+    }
   }
   refresh();
 });
@@ -1268,11 +1303,10 @@ document.getElementById('filter-departamento').addEventListener('change', async 
 document.getElementById('filter-provincia').addEventListener('change', async e => {
   filtroProvincia = e.target.value;
   filtroEjecutora = '';
+  disableSelect('filter-entidad', '— Todas —'); hideGroup('group-entidad');
   if (filtroProvincia) {
+    // M: Provincia → Municipalidad
     await poblarEjecutora();
-  } else {
-    disableSelect('filter-entidad', '— Todas —');
-    hideGroup('group-entidad');
   }
   refresh();
 });
@@ -1329,9 +1363,12 @@ async function cargarDatos() {
   }
 }
 
-document.getElementById('btn-actualizar').addEventListener('click', cargarDatos);
+// btn-actualizar: solo recarga KPIs + tabla desde Supabase (sin API externa)
+document.getElementById('btn-actualizar').addEventListener('click', () => {
+  cargarKPIs().catch(console.warn);
+  cargarTabla(0).catch(console.error);
+});
 cargarDatos();
-setInterval(cargarDatos, 5 * 60 * 1000);
 </script>
 </body>
 </html>
