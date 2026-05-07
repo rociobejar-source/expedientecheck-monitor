@@ -723,6 +723,7 @@
       <thead>
         <tr>
           <th>Nombre Proyecto</th>
+          <th>CUI</th>
           <th>Ejecutora</th>
           <th>Departamento</th>
           <th>PIM 2026 (S/)</th>
@@ -1163,6 +1164,7 @@ function renderTabla(rows) {
     tr.style.cursor = 'pointer';
     tr.innerHTML = `
       <td><div class="obra-nombre">${esc(o.nombre_proyecto || 'Sin nombre')}</div></td>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(o.cui || '—')}</td>
       <td style="font-size:12px;color:var(--muted)">${esc(o.pliego_nombre || '—')}</td>
       <td style="font-size:12px;color:var(--muted)">${esc(o.departamento_nombre || '—')}</td>
       <td class="monto">${fmtM(o.pim)}</td>
