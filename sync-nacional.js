@@ -6,6 +6,28 @@ const fs = require('fs');
 const path = require('path');
 
 const SUPABASE_URL = 'https://xrbyvwliffdvfdmshaix.supabase.co';
+
+// CUIs genéricos del MEF: tipos de obra/programa con cientos de ejecutoras
+// que inflan el PIM total — no son proyectos individuales rastreables
+const NOMBRES_GENERICOS = new Set([
+  'ESTUDIOS DE PRE-INVERSION',
+  'FORTALECIMIENTO INSTITUCIONAL',
+  'INICIATIVA A LA COMPETITIVIDAD',
+  'CONCESIONES VIALES',
+  'LIQUIDACION DE OBRAS',
+  'OPERACION Y MANTENIMIENTO',
+  'CONSTRUCCION DE PISTAS Y VEREDAS',
+  'MEJORAMIENTO DE CENTROS EDUCATIVOS',
+  'MEJORAMIENTO DE SISTEMA DE ABASTECIMIENTO DE AGUA POTABLE Y DESAGUE',
+  'APOYO A LA PRODUCCION AGROPECUARIA',
+  'MEJORAMIENTO DE SISTEMA DE RIEGO',
+  'CONSTRUCCION DE LOCALES COMUNALES',
+  'GESTION DE PROYECTOS',
+  'CONCESIONES FERROVIARIAS',
+  'CONCESIONES AEROPORTUARIAS',
+  'CONCESIONES EN TELECOMUNICACIONES',
+  'CONCESIONES PORTUARIAS',
+});
 const envVars = {};
 try {
   const envPath = require('path').join('C:\\ExpedienteCheck\\expediente-check-backend', '.env');
@@ -269,6 +291,7 @@ async function main() {
   log(`Total merged (deduplicado)   : ${merged.length}`);
 
   async function processEntidad(entidad) {
+    if (NOMBRES_GENERICOS.has(entidad.nombre_proyecto?.trim())) return;
     const cui = entidad.cui;
     const ejecutora = entidad.ejecutora;
     let ssi = {}, dev = {};
