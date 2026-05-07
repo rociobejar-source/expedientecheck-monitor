@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
@@ -631,7 +631,7 @@
         <option value="">— Todos —</option>
       </select>
     </div>
-    <div class="filter-group">
+    <div class="filter-group" id="group-sector" style="display:none">
       <label for="filter-sector">Sector</label>
       <select id="filter-sector" disabled>
         <option value="">— Todos —</option>
@@ -650,12 +650,12 @@
       </select>
     </div>
     <div class="filter-group" id="group-entidad" style="display:none">
-      <label for="filter-entidad">Entidad</label>
+      <label for="filter-entidad">Ejecutora / Municipalidad</label>
       <select id="filter-entidad" disabled>
         <option value="">— Todas —</option>
       </select>
     </div>
-    <div class="filter-group" id="group-uei">
+    <div class="filter-group" id="group-uei" style="display:none">
       <label for="filter-uei">Unidad Ejecutora (UEI)</label>
       <select id="filter-uei" disabled>
         <option value="">— Todas —</option>
@@ -722,18 +722,15 @@
     <table>
       <thead>
         <tr>
-          <th>Nombre Inversión</th>
-          <th>Entidad</th>
-          <th>Código Único</th>
-          <th>Costo Actualizado (S/)</th>
-          <th>Av. Físico</th>
-          <th>Av. Ejecución</th>
+          <th>Nombre Proyecto</th>
+          <th>Ejecutora</th>
+          <th>Departamento</th>
           <th>PIM 2026 (S/)</th>
-          <th>Dev. 2026 (S/)</th>
-          <th>Brecha</th>
-          <th>Alertas</th>
+          <th>Devengado (S/)</th>
+          <th>Av. Físico</th>
+          <th>Av. Financiero</th>
+          <th>Alerta</th>
           <th>Estado</th>
-          <th></th>
         </tr>
       </thead>
       <tbody id="tbody">
@@ -862,39 +859,40 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 // ── CONFIG ────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://xrbyvwliffdvfdmshaix.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_2Nsz0LLP4pyI2GkdeBn2xA_5kwxzHZ3';
 const API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
   ? 'http://localhost:3003'
   : 'https://api.expedientecheck.com';
 
 const { createClient } = supabase;
-const db = createClient(
-  'https://xrbyvwliffdvfdmshaix.supabase.co',
-  'sb_publishable_2Nsz0LLP4pyI2GkdeBn2xA_5kwxzHZ3'
-);
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── ESTADO ───────────────────────────────────────────────────
-let catEntidades    = [];
-let tableRows       = [];   // rows currently shown in table
+// ── ESTADO ────────────────────────────────────────────────────
 let currentPage     = 0;
-let totalCount      = 0;    // server-side COUNT
-let kpiRojas        = 0;    // server-side alert counts
-let kpiAmarillas    = 0;
+let totalCount      = 0;
 let hasNextPage     = false;
-let filtroAlerta    = '';
-let filtroRiesgo    = 'todas';
-let kpiStats        = null;
-let filtroNivel     = '';
-let filtroSector    = '';
-let filtroDepartamento = '';
-let filtroProvincia = '';
-let filtroEntidad   = '';
-let filtroUei       = '';
-let inversionActual = null;
 const PAGE_SIZE     = 100;
 
+let filtroNivel        = '';   // nivel_gobierno_nombre (for cascading UI only)
+let filtroDepartamento = '';   // departamento_nombre
+let filtroProvincia    = '';   // provincia_nombre
+let filtroEjecutora    = '';   // ejecutora code (TEXT)
+let filtroAlerta       = '';   // alerta value
+
 // ── FECHA ────────────────────────────────────────────────────
-document.getElementById('fecha-hoy').textContent =
-  new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
+async function setFechaHoy() {
+  try {
+    const res = await fetch(`${API}/api/fecha`);
+    if (!res.ok) throw new Error('No se pudo obtener la fecha del backend');
+    const data = await res.json();
+    document.getElementById('fecha-hoy').textContent = data.fecha;
+  } catch (e) {
+    document.getElementById('fecha-hoy').textContent =
+      new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+}
+setFechaHoy();
 
 // ── UTILS ────────────────────────────────────────────────────
 const fmtM = v => {
@@ -909,10 +907,9 @@ const fmtMFull = v => {
   if (!v || isNaN(n)) return '—';
   return 'S/ ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
-const fmtPct = v => v != null && v !== '' ? Number(v).toFixed(1)+'%' : '—';
+const fmtPct = v => v != null && v !== '' ? Number(v).toFixed(1) + '%' : '—';
 const fmtFecha = v => {
   if (!v || v === '') return '—';
-  // API devuelve "2025-03-15 00:00:00" o "2025-03-15"
   const d = new Date(String(v).replace(' ', 'T'));
   if (isNaN(d)) return String(v).substring(0, 10);
   return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Lima' });
@@ -926,222 +923,37 @@ function toast(msg, tipo='success') {
   setTimeout(() => el.className = '', 3000);
 }
 
-// ── CALCULAR ALERTA ──────────────────────────────────────────
-function calcAvanceFin(row) {
-  const costo = Number(row.COSTO_ACTUALIZADO);
-  if (!costo) return null;
-  return (Number(row.DEVEN_ACUMUL_ANIO_ANT || 0) + Number(row.DEV_ANIO_ACTUAL || 0)) / costo * 100;
-}
-
-function calcAlerta(row) {
-  const avFin = calcAvanceFin(row);
-  if (avFin === null) return 'verde';
-  const fis = (row.AVANCE_FISICO != null && row.AVANCE_FISICO !== '') ? Number(row.AVANCE_FISICO) : null;
-  const brecha = fis !== null ? avFin - fis : avFin;
-  if (brecha > 20) return 'rojo';
-  if (brecha >= 5) return 'amarillo';
-  return 'verde';
-}
-
-function calcF12bVencido(row) {
-  const val = String(row.TIENE_AVAN_FISICO || '').toUpperCase().trim();
-  if (val !== 'SI' && val !== 'S' && val !== '1' && val !== 'TRUE') return false;
-  if (!row.ULT_FEC_DECLA_ESTIM) return false;
-  const ult = new Date(row.ULT_FEC_DECLA_ESTIM);
-  if (isNaN(ult)) return false;
-  const diffDias = (new Date() - ult) / (1000 * 60 * 60 * 24);
-  return diffDias > 30;
-}
-
-function calcObraAtrasada(row) {
-  const fin = row.FEC_FIN_EJEC_FISICA;
-  if (fin == null || fin === '') return false;
-  const fechaFin = new Date(String(fin).replace(' ', 'T'));
-  if (isNaN(fechaFin)) return false;
-  const avFisico = row.AVANCE_FISICO ?? null;
-  if (avFisico === null || avFisico === '') return false;
-  return fechaFin <= new Date() && parseFloat(avFisico) < 100;
-}
-
-// ── CARGAR CAT_ENTIDADES (una sola vez) ──────────────────────
-async function cargarCatEntidades() {
-  try {
-    const res  = await fetch(`${API}/api/cat-entidades`);
-    const data = await res.json();
-    catEntidades = data.cat_entidades || [];
-  } catch (e) {
-    console.warn('cat-entidades fallback a Supabase:', e.message);
-    const { data } = await db.from('cat_entidades').select('NIVEL,SECTOR,DEPARTAMENTO,PROVINCIA,ENTIDAD,NOMBRE_UEI');
-    catEntidades = data || [];
-  }
-}
-
-// ── FILTROS GLOBALES ─────────────────────────────────────────
-// Cuando hay UEI seleccionada, la UEI es el filtro real de resultados.
-// Los demás filtros solo sirven para navegar hasta la UEI.
-function applyFilters(query) {
-  query = query.gt('PIM_ANIO_ACTUAL', 0);
-  if (filtroUei) {
-    // UEI seleccionada: mostrar TODAS las inversiones de esa UEI sin importar entidad
-    query = query.eq('NOMBRE_UEI', filtroUei);
-  } else {
-    if (filtroNivel)        query = query.eq('NIVEL',        filtroNivel);
-    if (filtroSector)       query = query.eq('SECTOR',       filtroSector);
-    if (filtroDepartamento) query = query.eq('DEPARTAMENTO', filtroDepartamento);
-    if (filtroProvincia)    query = query.eq('PROVINCIA',    filtroProvincia);
-    if (filtroEntidad)      query = query.eq('ENTIDAD',      filtroEntidad);
-  }
-  return query;
-}
-
-// ── KPIs SERVER-SIDE ─────────────────────────────────────────
-async function cargarKPIs() {
-  try {
-    const params = new URLSearchParams();
-    if (filtroUei) {
-      // UEI seleccionada: todos los KPIs del universo completo de esa UEI
-      params.set('uei', filtroUei);
-    } else {
-      if (filtroNivel)        params.set('nivel', filtroNivel);
-      if (filtroSector)       params.set('sector', filtroSector);
-      if (filtroDepartamento) params.set('departamento', filtroDepartamento);
-      if (filtroProvincia)    params.set('provincia', filtroProvincia);
-      if (filtroEntidad)      params.set('entidad', filtroEntidad);
+// ── SUPABASE REST HELPER ──────────────────────────────────────
+async function sbGet(path, headers = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      ...headers
     }
-    const res  = await fetch(`${API}/api/kpis?${params}`);
-    const stats = await res.json();
-    kpiStats = stats;
-    const pim = stats.pim || 0;
-    const dev = stats.dev || 0;
-    document.getElementById('kpi-total').textContent =
-      Number(stats.total || 0).toLocaleString('es-PE');
-    document.getElementById('kpi-pim').textContent =
-      'S/ ' + (pim/1e6).toLocaleString('en-US',
-        {minimumFractionDigits:1, maximumFractionDigits:1}) + 'M';
-    document.getElementById('kpi-dev').textContent =
-      'S/ ' + (dev/1e6).toLocaleString('en-US',
-        {minimumFractionDigits:1, maximumFractionDigits:1}) + 'M';
-    const devPct = pim > 0 ? (dev / pim * 100).toFixed(1) + '% del PIM 2026' : '% del PIM 2026';
-    document.getElementById('stat-dev-pct').textContent = devPct;
-    document.getElementById('kpi-rojos').textContent =
-      Number(stats.rojos || 0).toLocaleString('es-PE');
-    document.getElementById('kpi-amarillos').textContent =
-      Number(stats.amarillos || 0).toLocaleString('es-PE');
-    renderFiltros();
-  } catch(err) {
-    console.error('cargarKPIs error:', err);
-  }
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${path}`);
+  return res.json();
 }
 
-// ── CARGAR TABLA ─────────────────────────────────────────────
-async function cargarTabla(page = 0) {
-  currentPage = page;
-  const tbody   = document.getElementById('tbody');
-  const loadMsg = document.getElementById('loading-msg');
-
-  tbody.innerHTML = `<tr><td colspan="12" style="padding:32px;text-align:center;color:var(--muted);font-size:13px;"><span id="loading-msg">Cargando...</span></td></tr>`;
-
-  const filters = {};
-  if (filtroUei) {
-    // UEI seleccionada: ignorar jerarquía, filtrar solo por UEI
-    filters['NOMBRE_UEI'] = filtroUei;
-  } else {
-    if (filtroNivel)        filters['NIVEL']        = filtroNivel;
-    if (filtroSector)       filters['SECTOR']       = filtroSector;
-    if (filtroDepartamento) filters['DEPARTAMENTO'] = filtroDepartamento;
-    if (filtroProvincia)    filters['PROVINCIA']    = filtroProvincia;
-    if (filtroEntidad)      filters['ENTIDAD']      = filtroEntidad;
-  }
-
-  function applyFilters(query) {
-    query = query.gt('PIM_ANIO_ACTUAL', 0);
-    Object.entries(filters).forEach(([key, val]) => { query = query.eq(key, val); });
-    return query;
-  }
-
-  let query = applyFilters(
-    db.from('inversiones').select('*')
-  ).order('PIM_ANIO_ACTUAL', { ascending: false });
-
-  // Apply alert filter server-side (alerta is a pre-calculated column)
-  if (filtroAlerta) query = query.eq('alerta', filtroAlerta);
-
-  const loadAll = !!filtroUei;  // UEI es el filtro real; cargar todo su universo
-  if (loadAll) {
-    // Load all rows when ENTIDAD or (alert + nivel) active — counts must be exact
-    const { data, error } = await query;
-    if (error) throw error;
-    tableRows   = data || [];
-    hasNextPage = false;
-    document.getElementById('paginacion').style.display = 'none';
-  } else {
-    // No entidad: paginate 100 rows
-    const offset = page * PAGE_SIZE;
-    const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
-    tableRows   = data || [];
-    hasNextPage = tableRows.length === PAGE_SIZE;
-    renderPaginacion();
-  }
-
-  renderStats();
-  renderFiltros();
-  renderTabla();
-}
-
-// ── PAGINACIÓN ────────────────────────────────────────────────
-function renderPaginacion() {
-  const wrap = document.getElementById('paginacion');
-  if (filtroEntidad) { wrap.style.display = 'none'; return; }
-  wrap.style.display = 'flex';
-  document.getElementById('btn-anterior').disabled  = currentPage === 0;
-  document.getElementById('btn-siguiente').disabled = !hasNextPage;
-  const inicio = currentPage * PAGE_SIZE + 1;
-  const fin    = currentPage * PAGE_SIZE + tableRows.length;
-  document.getElementById('pag-info').textContent =
-    `Página ${currentPage + 1} · mostrando ${inicio}–${fin} de ${totalCount.toLocaleString('en-US')}`;
-}
-
-// ── BOTONES PAGINACIÓN ────────────────────────────────────────
-document.getElementById('btn-anterior').addEventListener('click', () => cargarTabla(currentPage - 1));
-document.getElementById('btn-siguiente').addEventListener('click', () => cargarTabla(currentPage + 1));
-
-// ── INICIAL ───────────────────────────────────────────────────
-async function cargarDatos() {
-  const btn  = document.getElementById('btn-actualizar');
-  const icon = document.getElementById('icon-refresh');
-  btn.disabled = true;
-  icon.className = 'spin';
-  icon.textContent = '↻';
-  try {
-    await cargarCatEntidades();
-    poblarFiltroNivel();
-    await Promise.all([
-      cargarKPIs().catch(err => console.warn('KPI count fallback:', err.message)),
-      cargarTabla(0)
-    ]);
-  } catch (err) {
-    console.error(err);
-    document.getElementById('tbody').innerHTML =
-      `<tr><td colspan="12"><div class="empty-state">Error al cargar datos: ${esc(err.message)}</div></td></tr>`;
-    toast('Error al cargar datos', 'error');
-  } finally {
-    btn.disabled = false;
-    icon.className = '';
-  }
-}
-
-document.getElementById('btn-actualizar').addEventListener('click', cargarDatos);
-
-// ── HELPERS ──────────────────────────────────────────────────
-const esGL = () => filtroNivel === 'GL';
-
-function fillSelect(id, valores, placeholder) {
+// ── FILTER HELPERS ────────────────────────────────────────────
+function fillSelect(id, vals, placeholder) {
   const sel = document.getElementById(id);
   sel.innerHTML = `<option value="">${placeholder}</option>`;
-  valores.forEach(v => {
+  vals.forEach(v => {
     const o = document.createElement('option');
     o.value = v; o.textContent = v;
+    sel.appendChild(o);
+  });
+  sel.disabled = false;
+}
+
+function fillSelectPairs(id, pairs, placeholder) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
+  pairs.forEach(({ value, label }) => {
+    const o = document.createElement('option');
+    o.value = value; o.textContent = label;
     sel.appendChild(o);
   });
   sel.disabled = false;
@@ -1154,156 +966,316 @@ function disableSelect(id, placeholder) {
   sel.value = '';
 }
 
-function showGroup(id)  { document.getElementById(id).style.display = ''; }
-function hideGroup(id)  { document.getElementById(id).style.display = 'none'; }
+function showGroup(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
+function hideGroup(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 
-// ── APARIENCIA SEGÚN NIVEL ────────────────────────────────────
-function actualizarVisibilidad() {
-  if (!filtroNivel) {
-    hideGroup('group-departamento');
-    hideGroup('group-provincia');
-    hideGroup('group-entidad');
-    hideGroup('group-uei');
-  } else if (esGL()) {
+// ── POBLAR FILTROS CASCADA (desde cat_entidades) ──────────────
+async function poblarNivel() {
+  try {
+    const data = await sbGet('cat_entidades?select=nivel_gobierno_nombre&limit=1000');
+    const vals = [...new Set(data.map(r => r.nivel_gobierno_nombre).filter(Boolean))].sort();
+    fillSelect('filter-nivel', vals, '— Todos —');
+  } catch (e) {
+    console.warn('poblarNivel:', e.message);
+  }
+}
+
+async function poblarDepartamento() {
+  disableSelect('filter-departamento', '— Cargando... —');
+  try {
+    let url = 'cat_entidades?select=departamento_nombre&limit=2000';
+    if (filtroNivel) url += `&nivel_gobierno_nombre=eq.${encodeURIComponent(filtroNivel)}`;
+    const data = await sbGet(url);
+    const vals = [...new Set(data.map(r => r.departamento_nombre).filter(Boolean))].sort();
+    fillSelect('filter-departamento', vals, '— Todos —');
     showGroup('group-departamento');
+  } catch (e) {
+    console.warn('poblarDepartamento:', e.message);
+  }
+}
+
+async function poblarProvincia() {
+  disableSelect('filter-provincia', '— Cargando... —');
+  try {
+    let url = 'cat_entidades?select=provincia_nombre&limit=2000';
+    if (filtroNivel)        url += `&nivel_gobierno_nombre=eq.${encodeURIComponent(filtroNivel)}`;
+    if (filtroDepartamento) url += `&departamento_nombre=eq.${encodeURIComponent(filtroDepartamento)}`;
+    const data = await sbGet(url);
+    const vals = [...new Set(data.map(r => r.provincia_nombre).filter(Boolean))].sort();
+    fillSelect('filter-provincia', vals, '— Todas —');
     showGroup('group-provincia');
-    showGroup('group-entidad');
-    showGroup('group-uei');
-  } else {
-    hideGroup('group-departamento');
-    hideGroup('group-provincia');
-    showGroup('group-entidad');
-    showGroup('group-uei');
+  } catch (e) {
+    console.warn('poblarProvincia:', e.message);
   }
 }
 
-// ── POBLAR FILTROS (desde cat_entidades) ─────────────────────
-function poblarFiltroNivel() {
-  const vals = [...new Set(catEntidades.map(r => r.NIVEL).filter(Boolean))].sort();
-  fillSelect('filter-nivel', vals, '— Todos —');
-  document.getElementById('filter-nivel').disabled = false;
-  resetTodos();
-}
-
-function poblarSector() {
-  let rows = catEntidades;
-  if (filtroNivel) rows = rows.filter(r => r.NIVEL === filtroNivel);
-  fillSelect('filter-sector', [...new Set(rows.map(r => r.SECTOR).filter(Boolean))].sort(), '— Todos —');
-}
-
-function poblarDepartamento() {
-  let rows = catEntidades;
-  if (filtroNivel)  rows = rows.filter(r => r.NIVEL  === filtroNivel);
-  if (filtroSector) rows = rows.filter(r => r.SECTOR === filtroSector);
-  fillSelect('filter-departamento', [...new Set(rows.map(r => r.DEPARTAMENTO).filter(Boolean))].sort(), '— Todos —');
-}
-
-function poblarProvincia() {
-  let rows = catEntidades;
-  if (filtroNivel)        rows = rows.filter(r => r.NIVEL        === filtroNivel);
-  if (filtroSector)       rows = rows.filter(r => r.SECTOR       === filtroSector);
-  if (filtroDepartamento) rows = rows.filter(r => r.DEPARTAMENTO === filtroDepartamento);
-  fillSelect('filter-provincia', [...new Set(rows.map(r => r.PROVINCIA).filter(Boolean))].sort(), '— Todas —');
-}
-
-function poblarEntidad() {
-  let rows = catEntidades;
-  if (filtroNivel)        rows = rows.filter(r => r.NIVEL        === filtroNivel);
-  if (filtroSector)       rows = rows.filter(r => r.SECTOR       === filtroSector);
-  if (esGL()) {
-    if (filtroDepartamento) rows = rows.filter(r => r.DEPARTAMENTO === filtroDepartamento);
-    if (filtroProvincia)    rows = rows.filter(r => r.PROVINCIA    === filtroProvincia);
+async function poblarEjecutora() {
+  disableSelect('filter-entidad', '— Cargando... —');
+  try {
+    let url = 'cat_entidades?select=ejecutora_nombre,ejecutora&limit=2000';
+    if (filtroNivel)        url += `&nivel_gobierno_nombre=eq.${encodeURIComponent(filtroNivel)}`;
+    if (filtroDepartamento) url += `&departamento_nombre=eq.${encodeURIComponent(filtroDepartamento)}`;
+    if (filtroProvincia)    url += `&provincia_nombre=eq.${encodeURIComponent(filtroProvincia)}`;
+    const data = await sbGet(url);
+    const map = new Map();
+    data.forEach(r => { if (r.ejecutora_nombre && r.ejecutora != null) map.set(String(r.ejecutora), r.ejecutora_nombre); });
+    const pairs = [...map.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+    fillSelectPairs('filter-entidad', pairs, '— Todas —');
+    showGroup('group-entidad');
+  } catch (e) {
+    console.warn('poblarEjecutora:', e.message);
   }
-  fillSelect('filter-entidad', [...new Set(rows.map(r => r.ENTIDAD).filter(Boolean))].sort(), '— Todas —');
 }
 
-function poblarUei() {
-  let rows = catEntidades;
-  if (filtroNivel)   rows = rows.filter(r => r.NIVEL   === filtroNivel);
-  if (filtroSector)  rows = rows.filter(r => r.SECTOR  === filtroSector);
-  if (filtroEntidad) rows = rows.filter(r => r.ENTIDAD === filtroEntidad);
-  fillSelect('filter-uei', [...new Set(rows.map(r => r.NOMBRE_UEI).filter(Boolean))].sort(), '— Todas —');
+// ── KPIs vía RPC ──────────────────────────────────────────────
+async function cargarKPIs() {
+  try {
+    const body = {};
+    if (filtroDepartamento) body.p_departamento = filtroDepartamento;
+    if (filtroProvincia)    body.p_provincia    = filtroProvincia;
+    if (filtroEjecutora)    body.p_ejecutora    = String(filtroEjecutora);
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_kpis_nacional`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`RPC ${res.status}`);
+    const stats = await res.json();
+
+    const total = Number(stats.total || 0);
+    const pim   = Number(stats.pim_total || 0);
+    const dev   = Number(stats.devengado_total || 0);
+    const rojos    = Number(stats.rojos || 0);
+    const amarillos = Number(stats.amarillos || 0);
+    const verdes    = Number(stats.verdes || 0);
+
+    document.getElementById('kpi-total').textContent = total.toLocaleString('es-PE');
+    document.getElementById('kpi-pim').textContent =
+      pim >= 1e6 ? 'S/ ' + (pim/1e6).toLocaleString('en-US', {minimumFractionDigits:1, maximumFractionDigits:1}) + 'M' : fmtM(pim);
+    document.getElementById('kpi-dev').textContent =
+      dev >= 1e6 ? 'S/ ' + (dev/1e6).toLocaleString('en-US', {minimumFractionDigits:1, maximumFractionDigits:1}) + 'M' : fmtM(dev);
+    const devPct = pim > 0 ? (dev / pim * 100).toFixed(1) + '% del PIM 2026' : '% del PIM 2026';
+    document.getElementById('stat-dev-pct').textContent = devPct;
+    document.getElementById('kpi-rojos').textContent    = rojos.toLocaleString('es-PE');
+    document.getElementById('kpi-amarillos').textContent = amarillos.toLocaleString('es-PE');
+
+    // Alert banner
+    const banner = document.getElementById('alert-banner');
+    if (rojos > 0) {
+      banner.style.display = 'block';
+      banner.innerHTML = `⚠️ <strong>${rojos.toLocaleString('es-PE')} inversión(es) con riesgo alto.</strong> Brecha entre avance financiero y avance físico supera 20 puntos.`;
+    } else {
+      banner.style.display = 'none';
+    }
+
+    // Chips de filtro rápido
+    document.getElementById('f-total').textContent    = total.toLocaleString('es-PE');
+    document.getElementById('f-rojo').textContent     = rojos.toLocaleString('es-PE');
+    document.getElementById('f-amarillo').textContent = amarillos.toLocaleString('es-PE');
+    document.getElementById('f-verde').textContent    = verdes.toLocaleString('es-PE');
+
+  } catch (err) {
+    console.warn('KPI RPC no disponible:', err.message);
+    // Silently degrade — tabla seguirá cargando
+  }
 }
 
-// ── RESET HELPERS ─────────────────────────────────────────────
-function resetTodos() {
-  filtroSector = ''; filtroDepartamento = ''; filtroProvincia = '';
-  filtroEntidad = ''; filtroUei = '';
-  disableSelect('filter-sector',       '— Todos —');
-  disableSelect('filter-departamento', '— Todos —');
-  disableSelect('filter-provincia',    '— Todas —');
-  disableSelect('filter-entidad',      '— Todas —');
-  disableSelect('filter-uei',          '— Todas —');
-  actualizarVisibilidad();
+// ── CONSTRUIR QUERY PARAMS ────────────────────────────────────
+function buildParams(extra = '') {
+  const parts = ['pim=gt.0'];
+  if (filtroDepartamento) parts.push(`departamento_nombre=eq.${encodeURIComponent(filtroDepartamento)}`);
+  if (filtroProvincia)    parts.push(`provincia_nombre=eq.${encodeURIComponent(filtroProvincia)}`);
+  if (filtroEjecutora)    parts.push(`ejecutora=eq.${encodeURIComponent(filtroEjecutora)}`);
+  if (filtroAlerta)       parts.push(`alerta=eq.${encodeURIComponent(filtroAlerta)}`);
+  if (extra)              parts.push(extra);
+  return parts.join('&');
 }
 
-function resetDesdeDepartamento() {
-  filtroDepartamento = ''; filtroProvincia = ''; filtroEntidad = ''; filtroUei = '';
-  disableSelect('filter-departamento', '— Todos —');
-  disableSelect('filter-provincia',    '— Todas —');
-  disableSelect('filter-entidad',      '— Todas —');
-  disableSelect('filter-uei',          '— Todas —');
+// ── CARGAR TABLA ──────────────────────────────────────────────
+async function cargarTabla(page = 0) {
+  currentPage = page;
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = `<tr><td colspan="9" style="padding:32px;text-align:center;color:var(--muted);font-size:13px;">Cargando...</td></tr>`;
+
+  try {
+    const cols = 'nombre_proyecto,pliego_nombre,departamento_nombre,provincia_nombre,pim,devengado,avance_fisico,avance_financiero,alerta,estado,cui,contratista,costo_actualizado,monto_por_ejecutar';
+    const params = buildParams(`select=${cols}&order=pim.desc`);
+    const offset = page * PAGE_SIZE;
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/ejecucion_nacional?${params}&limit=${PAGE_SIZE}&offset=${offset}`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'count=exact'
+      }
+    });
+    if (!res.ok) throw new Error(`Error ${res.status} al cargar tabla`);
+
+    const cr = res.headers.get('Content-Range');
+    if (cr) { const m = cr.match(/\/(\d+)$/); if (m) totalCount = parseInt(m[1], 10); }
+
+    const rows = await res.json();
+    hasNextPage = rows.length === PAGE_SIZE;
+    renderTabla(rows);
+    renderPaginacion();
+  } catch (err) {
+    console.error('cargarTabla error:', err);
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">Error al cargar datos: ${esc(err.message)}</div></td></tr>`;
+    toast('Error al cargar datos', 'error');
+  }
 }
 
-function resetDesdeProvincia() {
-  filtroProvincia = ''; filtroEntidad = ''; filtroUei = '';
+// ── RENDER TABLA ──────────────────────────────────────────────
+function renderTabla(rows) {
+  const tbody = document.getElementById('tbody');
+  if (!rows || !rows.length) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">Sin inversiones para mostrar</div></td></tr>`;
+    return;
+  }
+
+  const bgColor = { rojo: 'var(--rojo-lt)', amarillo: 'var(--amarillo-lt)', verde: 'var(--verde-lt)' };
+
+  tbody.innerHTML = '';
+  rows.forEach(o => {
+    const alerta = o.alerta || 'sin_datos';
+    const bg = bgColor[alerta] || '';
+
+    const badge = alerta === 'rojo'
+      ? `<span class="badge rojo">Riesgo alto</span>`
+      : alerta === 'amarillo'
+      ? `<span class="badge amarillo">Riesgo medio</span>`
+      : alerta === 'verde'
+      ? `<span class="badge verde">Sin alerta</span>`
+      : `<span class="badge gris">Sin datos</span>`;
+
+    const tr = document.createElement('tr');
+    if (bg) tr.style.background = bg;
+    tr.style.cursor = 'pointer';
+    tr.innerHTML = `
+      <td><div class="obra-nombre">${esc(o.nombre_proyecto || 'Sin nombre')}</div></td>
+      <td style="font-size:12px;color:var(--muted)">${esc(o.pliego_nombre || '—')}</td>
+      <td style="font-size:12px;color:var(--muted)">${esc(o.departamento_nombre || '—')}</td>
+      <td class="monto">${fmtM(o.pim)}</td>
+      <td class="monto">${fmtM(o.devengado)}</td>
+      <td class="monto">${fmtPct(o.avance_fisico)}</td>
+      <td class="monto">${fmtPct(o.avance_financiero)}</td>
+      <td>${badge}</td>
+      <td style="font-size:12px">${esc(o.estado || '—')}</td>
+    `;
+    tr.addEventListener('click', () => abrirModal(o));
+    tbody.appendChild(tr);
+  });
+}
+
+// ── PAGINACIÓN ────────────────────────────────────────────────
+function renderPaginacion() {
+  const wrap = document.getElementById('paginacion');
+  wrap.style.display = 'flex';
+  document.getElementById('btn-anterior').disabled  = currentPage === 0;
+  document.getElementById('btn-siguiente').disabled = !hasNextPage;
+  const inicio = totalCount > 0 ? currentPage * PAGE_SIZE + 1 : 0;
+  const finRow  = hasNextPage ? (currentPage + 1) * PAGE_SIZE : totalCount;
+  document.getElementById('pag-info').textContent =
+    `Página ${currentPage + 1} · mostrando ${inicio.toLocaleString('es-PE')}–${finRow.toLocaleString('es-PE')} de ${totalCount.toLocaleString('es-PE')}`;
+}
+
+document.getElementById('btn-anterior').addEventListener('click', () => cargarTabla(currentPage - 1));
+document.getElementById('btn-siguiente').addEventListener('click', () => cargarTabla(currentPage + 1));
+
+// ── MODAL ────────────────────────────────────────────────────
+function abrirModal(inv) {
+  document.getElementById('modal-title').textContent = inv.nombre_proyecto || 'Sin nombre';
+  document.getElementById('modal-meta').textContent  = `CUI: ${inv.cui || '—'}`;
+  document.getElementById('d-cui').textContent       = inv.cui || '—';
+  document.getElementById('d-costo').textContent     = fmtMFull(inv.costo_actualizado);
+  document.getElementById('d-pim').textContent       = fmtMFull(inv.pim);
+  document.getElementById('d-devengado').textContent = fmtMFull(inv.devengado);
+  document.getElementById('d-fisico').textContent    = fmtPct(inv.avance_fisico);
+  document.getElementById('d-ejecucion').textContent = fmtPct(inv.avance_financiero);
+  document.getElementById('d-nivel').textContent     = '—';
+  document.getElementById('d-sector').textContent    = inv.contratista || '—';
+  document.getElementById('d-entidad').textContent   = inv.pliego_nombre || '—';
+  document.getElementById('d-uei').textContent       = inv.estado || '—';
+
+  const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setEl('d-certif',    fmtMFull(inv.monto_por_ejecutar));
+  setEl('d-comprom',   '—');
+  setEl('d-fec-ini',   '—');
+  setEl('d-fec-fin',   '—');
+  setEl('d-f12b-fecha', fmtFecha(inv.updated_at));
+  const f12bAlert = document.getElementById('d-f12b-alert');
+  if (f12bAlert) f12bAlert.style.display = 'none';
+
+  document.getElementById('overlay').classList.add('open');
+}
+
+function cerrarModal() {
+  document.getElementById('overlay').classList.remove('open');
+}
+document.getElementById('modal-close').addEventListener('click', cerrarModal);
+document.getElementById('btn-cancel').addEventListener('click', cerrarModal);
+document.getElementById('overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('overlay')) cerrarModal();
+});
+
+// ── PDF ──────────────────────────────────────────────────────
+function actualizarBtnPdf() {
+  const btn = document.getElementById('btn-pdf');
+  if (btn) btn.style.display = 'none'; // PDF pendiente para nueva estructura
+}
+
+// ── EVENTOS DE FILTROS CASCADA ────────────────────────────────
+document.getElementById('filter-nivel').addEventListener('change', async e => {
+  filtroNivel = e.target.value;
+  filtroDepartamento = ''; filtroProvincia = ''; filtroEjecutora = '';
   disableSelect('filter-provincia', '— Todas —');
   disableSelect('filter-entidad',   '— Todas —');
-  disableSelect('filter-uei',       '— Todas —');
-}
-
-function resetDesdeEntidad() {
-  filtroEntidad = ''; filtroUei = '';
-  disableSelect('filter-entidad', '— Todas —');
-  disableSelect('filter-uei',     '— Todas —');
-}
-
-// ── EVENT LISTENERS CASCADA ───────────────────────────────────
-document.getElementById('filter-nivel').addEventListener('change', e => {
-  filtroNivel = e.target.value;
-  resetTodos();
-  if (filtroNivel) poblarSector();
-  refresh();
-});
-
-document.getElementById('filter-sector').addEventListener('change', e => {
-  filtroSector = e.target.value;
-  if (esGL()) {
-    resetDesdeDepartamento();
-    if (filtroSector) poblarDepartamento();
+  hideGroup('group-provincia');
+  hideGroup('group-entidad');
+  if (filtroNivel) {
+    await poblarDepartamento();
   } else {
-    resetDesdeEntidad();
-    if (filtroSector) poblarEntidad();
+    disableSelect('filter-departamento', '— Todos —');
+    hideGroup('group-departamento');
   }
   refresh();
 });
 
-document.getElementById('filter-departamento').addEventListener('change', e => {
+document.getElementById('filter-departamento').addEventListener('change', async e => {
   filtroDepartamento = e.target.value;
-  resetDesdeProvincia();
-  if (filtroDepartamento) poblarProvincia();
+  filtroProvincia = ''; filtroEjecutora = '';
+  disableSelect('filter-entidad', '— Todas —');
+  hideGroup('group-entidad');
+  if (filtroDepartamento) {
+    await poblarProvincia();
+  } else {
+    disableSelect('filter-provincia', '— Todas —');
+    hideGroup('group-provincia');
+  }
   refresh();
 });
 
-document.getElementById('filter-provincia').addEventListener('change', e => {
+document.getElementById('filter-provincia').addEventListener('change', async e => {
   filtroProvincia = e.target.value;
-  filtroEntidad = ''; filtroUei = '';
-  disableSelect('filter-entidad', '— Todas —');
-  disableSelect('filter-uei',     '— Todas —');
-  if (filtroProvincia) poblarEntidad();
+  filtroEjecutora = '';
+  if (filtroProvincia) {
+    await poblarEjecutora();
+  } else {
+    disableSelect('filter-entidad', '— Todas —');
+    hideGroup('group-entidad');
+  }
   refresh();
 });
 
 document.getElementById('filter-entidad').addEventListener('change', e => {
-  filtroEntidad = e.target.value;
-  filtroUei = '';
-  disableSelect('filter-uei', '— Todas —');
-  if (filtroEntidad) poblarUei();
-  refresh();
-});
-
-document.getElementById('filter-uei').addEventListener('change', e => {
-  filtroUei = e.target.value;
+  filtroEjecutora = e.target.value;
   refresh();
 });
 
@@ -1312,520 +1284,49 @@ document.getElementById('filter-alerta').addEventListener('change', e => {
   refresh();
 });
 
+// Chips de filtro rápido (rojo/amarillo/verde)
 document.querySelectorAll('.filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    filtroRiesgo = btn.dataset.filter;
-    renderTabla();
+    const val = btn.dataset.filter;
+    filtroAlerta = val === 'todas' ? '' : val;
+    document.getElementById('filter-alerta').value = filtroAlerta;
+    refresh();
   });
 });
 
+// ── REFRESH ──────────────────────────────────────────────────
 function refresh() {
-  actualizarBtnPdf();
-  cargarKPIs().catch(console.error);
+  cargarKPIs().catch(console.warn);
   cargarTabla(0).catch(console.error);
 }
 
-function getInversionesFiltradas() {
-  let rows = tableRows;
-  if (filtroRiesgo !== 'todas') rows = rows.filter(o => o.alerta === filtroRiesgo);
-  if (filtroAlerta)             rows = rows.filter(o => o.alerta === filtroAlerta);
-  return rows;
-}
-
-// ── STATS ────────────────────────────────────────────────────
-function renderStats() {
-  // kpiRojas/kpiAmarillas already set by cargarKPIs() (server-side, exact)
-  document.getElementById('kpi-rojos').textContent     = kpiRojas.toLocaleString('en-US');
-  document.getElementById('kpi-amarillos').textContent = kpiAmarillas.toLocaleString('en-US');
-
-  const banner    = document.getElementById('alert-banner');
-  const lines     = [];
-  if (kpiRojas > 0)
-    lines.push(`⚠️ <strong>${kpiRojas.toLocaleString('en-US')} inversión(es) con riesgo alto.</strong> Brecha entre avance financiero y avance físico supera 20 puntos.`);
-  banner.style.display = lines.length > 0 ? 'block' : 'none';
-  banner.innerHTML     = lines.join('');
-}
-
-// ── CONTADORES FILTROS ───────────────────────────────────────
-function renderFiltros() {
-  if (kpiStats) {
-    const verde = (kpiStats.total || 0) - (kpiStats.rojos || 0) - (kpiStats.amarillos || 0);
-    document.getElementById('f-total').textContent    = Number(kpiStats.total || 0).toLocaleString('es-PE');
-    document.getElementById('f-rojo').textContent     = Number(kpiStats.rojos || 0).toLocaleString('es-PE');
-    document.getElementById('f-amarillo').textContent = Number(kpiStats.amarillos || 0).toLocaleString('es-PE');
-    document.getElementById('f-verde').textContent    = Number(verde).toLocaleString('es-PE');
-  } else {
-    const base = getInversionesFiltradas();
-    document.getElementById('f-total').textContent    = base.length;
-    document.getElementById('f-rojo').textContent     = base.filter(o => o.alerta === 'rojo').length;
-    document.getElementById('f-amarillo').textContent = base.filter(o => o.alerta === 'amarillo').length;
-    document.getElementById('f-verde').textContent    = base.filter(o => o.alerta === 'verde').length;
-  }
-}
-
-// ── TABLA ────────────────────────────────────────────────────
-function renderTabla() {
-  const tbody = document.getElementById('tbody');
-  let base = getInversionesFiltradas();
-
-  // Chip filter by alerta
-  if (filtroRiesgo !== 'todas') {
-    base = base.filter(o => {
-      if (filtroRiesgo === 'verde') return o.alerta === 'verde';
-      return o.alerta === filtroRiesgo;
-    });
-  }
-
-  if (!base.length) {
-    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state">Sin inversiones para mostrar</div></td></tr>`;
-    return;
-  }
-
-  // Sort by PIM desc
-  base = [...base].sort((a, b) => (Number(b.PIM_ANIO_ACTUAL) || 0) - (Number(a.PIM_ANIO_ACTUAL) || 0));
-
-  const rows = base.map(o => {
-    const alerta   = o.alerta;
-    const devAcum = parseFloat(o.DEVEN_ACUMUL_ANIO_ANT) || 0;
-    const devAnio = parseFloat(o.DEV_ANIO_ACTUAL) || 0;
-    const costo   = parseFloat(o.COSTO_ACTUALIZADO) || 0;
-    const avFin   = costo > 0 ? ((devAcum + devAnio) / costo * 100) : 0;
-    const fis      = o.AVANCE_FISICO != null ? parseFloat(o.AVANCE_FISICO) : null;
-    const sinFisico = fis === null;
-    const brecha   = fis != null ? (avFin - fis) : null;
-    const f12bVenc = calcF12bVencido(o);
-    const obraAtrasada = calcObraAtrasada(o);
-
-    const alertaTitle = sinFisico ? 'Sin avance físico declarado' : '';
-    const badgeAlerta = alerta === 'rojo'
-      ? `<span class="badge rojo" title="${alertaTitle}">Brecha alta</span>`
-      : alerta === 'amarillo'
-      ? `<span class="badge amarillo" title="${alertaTitle}">Brecha media</span>`
-      : `<span class="badge gris">Sin alertas</span>`;
-
-    const estadoDot = alerta === 'rojo'
-      ? `<span class="estado-dot rojo">Riesgo alto</span>`
-      : alerta === 'amarillo'
-      ? `<span class="estado-dot amarillo">Atención</span>`
-      : `<span class="estado-dot verde">Sin alerta</span>`;
-
-    const f12bDot = f12bVenc
-      ? `<span class="f12b-dot" title="F12B sin actualizar hace más de 30 días. Según normativa debe registrarse en los primeros 10 días hábiles del mes."></span>`
-      : '';
-
-    // F bar: AVANCE_FISICO or gray dash
-    const fBar = sinFisico
-      ? `<span class="prog-label">F</span><span style="color:var(--muted);font-size:12px">—</span>`
-      : `<span class="prog-label">F</span>
-         <div class="prog-bar"><div class="prog-fill fisico" style="width:${Math.min(fis,100)}%"></div></div>
-         <span class="prog-pct">${fis.toFixed(1)}%</span>`;
-
-    // S bar: avance_financiero
-    const sBar = `<span class="prog-label">$</span>
-         <div class="prog-bar"><div class="prog-fill financiero" style="width:${Math.min(avFin,100)}%"></div></div>
-         <span class="prog-pct">${avFin.toFixed(1)}%</span>`;
-
-    // BRECHA cell
-    const brechaColor = alerta==='rojo' ? 'var(--rojo)' : alerta==='amarillo' ? 'var(--amarillo)' : 'var(--muted)';
-    const brechaCell  = brecha != null
-      ? `<span class="pct-grande" style="color:${brechaColor}">${(brecha > 0 ? '+' : '') + brecha.toFixed(1)}%</span>`
-      : `<span class="pct-grande" style="color:${brechaColor}">S/D</span>`;
-
-    const tr = document.createElement('tr');
-    tr.dataset.code = o.CODIGO_UNICO;
-    tr.innerHTML = `
-      <td>
-        <div class="obra-nombre">${esc(o.NOMBRE_INVERSION || 'Sin nombre')}${f12bDot}</div>
-      </td>
-      <td style="font-size:12px;color:var(--muted)">${esc(o.ENTIDAD || '—')}${filtroEntidad && o.ENTIDAD !== filtroEntidad ? `<br><span class="badge-ext" title="Registrada por entidad diferente a la seleccionada en el filtro">↗ Ext.</span>` : ''}</td>
-      <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">${esc(o.CODIGO_UNICO || '—')}</td>
-      <td class="monto">${fmtM(o.COSTO_ACTUALIZADO)}</td>
-      <td class="progress-col"><div class="prog-row">${fBar}</div></td>
-      <td class="progress-col"><div class="prog-row">${sBar}</div></td>
-      <td class="monto">${fmtM(o.PIM_ANIO_ACTUAL)}</td>
-      <td class="monto">${fmtM(o.DEV_ANIO_ACTUAL)}</td>
-      <td>${brechaCell}</td>
-      <td>${badgeAlerta}${f12bVenc ? ' <span class="badge naranja">F12B vencido</span>' : ''}${obraAtrasada ? ' <span class="badge indigo">Obra atrasada</span>' : ''}</td>
-      <td>${estadoDot}</td>
-      <td>
-        <button class="btn-detalle" data-code="${esc(o.CODIGO_UNICO)}">Ver detalle</button>
-      </td>
-    `;
-    return tr;
-  });
-
-  tbody.innerHTML = '';
-  rows.forEach(r => tbody.appendChild(r));
-
-  tbody.querySelectorAll('.btn-detalle').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const code = btn.dataset.code;
-      const inv = tableRows.find(o => String(o.CODIGO_UNICO) === String(code));
-      if (inv) abrirModal(inv);
-    });
-  });
-}
-
-// ── MODAL ────────────────────────────────────────────────────
-function abrirModal(inv) {
-  inversionActual = inv;
-  const f12bVenc = calcF12bVencido(inv);
-
-  document.getElementById('modal-title').textContent = inv.NOMBRE_INVERSION || 'Sin nombre';
-  document.getElementById('modal-meta').textContent  = `Código Único: ${inv.CODIGO_UNICO || '—'}`;
-  document.getElementById('d-cui').textContent       = inv.CODIGO_UNICO || '—';
-  document.getElementById('d-costo').textContent     = fmtMFull(inv.COSTO_ACTUALIZADO);
-  document.getElementById('d-pim').textContent       = fmtMFull(inv.PIM_ANIO_ACTUAL);
-  document.getElementById('d-devengado').textContent = fmtMFull(inv.DEV_ANIO_ACTUAL);
-  document.getElementById('d-fisico').textContent    = fmtPct(inv.AVANCE_FISICO);
-  const _c = parseFloat(inv.COSTO_ACTUALIZADO) || 0;
-  const _avFin = _c > 0 ? ((parseFloat(inv.DEVEN_ACUMUL_ANIO_ANT)||0) + (parseFloat(inv.DEV_ANIO_ACTUAL)||0)) / _c * 100 : 0;
-  document.getElementById('d-ejecucion').textContent = _avFin.toFixed(1) + '%';
-  document.getElementById('d-nivel').textContent     = inv.NIVEL || '—';
-  document.getElementById('d-sector').textContent    = inv.SECTOR || '—';
-  document.getElementById('d-entidad').textContent   = inv.ENTIDAD || '—';
-  document.getElementById('d-uei').textContent       = inv.NOMBRE_UEI || '—';
-
-  // ── Nuevos campos ──────────────────────────────────────────
-  document.getElementById('d-certif').textContent    = fmtMFull(inv.CERTIF_ANIO_ACTUAL);
-  document.getElementById('d-comprom').textContent   = fmtMFull(inv.COMPROM_ANUAL_ANIO_ACTUAL);
-  document.getElementById('d-fec-ini').textContent   = fmtFecha(inv.FEC_INI_EJEC_FISICA);
-  document.getElementById('d-fec-fin').textContent   = fmtFecha(inv.FEC_FIN_EJEC_FISICA);
-
-  const f12bFecha = inv.ULT_FEC_DECLA_ESTIM;
-  document.getElementById('d-f12b-fecha').textContent = fmtFecha(f12bFecha);
-  document.getElementById('d-f12b-fecha').style.color =
-    f12bVenc ? 'var(--naranja)' : (f12bFecha ? 'var(--text)' : 'var(--muted)');
-
-  document.getElementById('d-f12b-alert').style.display = f12bVenc ? 'block' : 'none';
-
-  document.getElementById('overlay').classList.add('open');
-}
-
-function cerrarModal() {
-  document.getElementById('overlay').classList.remove('open');
-  inversionActual = null;
-}
-
-document.getElementById('modal-close').addEventListener('click', cerrarModal);
-document.getElementById('btn-cancel').addEventListener('click', cerrarModal);
-document.getElementById('overlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('overlay')) cerrarModal();
-});
-
-// ── BOTÓN PDF ────────────────────────────────────────────────
-function actualizarBtnPdf() {
-  const btn = document.getElementById('btn-pdf');
-  if (btn) btn.style.display = filtroUei ? 'flex' : 'none';
-}
-
-async function descargarPDF() {
-  if (!filtroUei) return;
-
-  const btn = document.getElementById('btn-pdf');
-  const originalHTML = btn.innerHTML;
+// ── CARGA INICIAL ─────────────────────────────────────────────
+async function cargarDatos() {
+  const btn  = document.getElementById('btn-actualizar');
+  const icon = document.getElementById('icon-refresh');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin">↻</span> Generando...';
-
+  icon.className = 'spin';
+  icon.textContent = '↻';
   try {
-    const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-    if (!JsPDF) {
-      alert('La librería jsPDF no cargó. Verifica tu conexión a internet.');
-      btn.disabled = false;
-      btn.innerHTML = originalHTML;
-      return;
-    }
-    const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-    const pageW = doc.internal.pageSize.getWidth();   // 297
-    const pageH = doc.internal.pageSize.getHeight();  // 210
-    const M = 14;
-    const cW = pageW - M * 2; // 269
-
-    const ueiNombre = filtroUei;
-    const fechaGen  = new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
-
-    // ── helpers ──────────────────────────────────────────────
-    const trunc = (s, n) => {
-      if (s == null || s === '') return '—';
-      s = String(s);
-      return s.length > n ? s.substring(0, n - 1) + '…' : s;
-    };
-
-    const drawPageFooter = (pageNum, total) => {
-      doc.setPage(pageNum);
-      doc.setFillColor(240, 237, 230);
-      doc.rect(0, pageH - 9, pageW, 9, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.5);
-      doc.setTextColor(122, 117, 112);
-      doc.text('ExpedienteCheck · Monitor de Inversiones SSI-MEF · www.expedientecheck.com', M, pageH - 3.5);
-      doc.text(`Página ${pageNum} de ${total}`, pageW - M, pageH - 3.5, { align: 'right' });
-    };
-
-    let y = 0;
-
-    // ── HEADER BAR ───────────────────────────────────────────
-    doc.setFillColor(15, 15, 15);
-    doc.rect(0, 0, pageW, 20, 'F');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(255, 255, 255);
-    doc.text('ExpedienteCheck', M, 11);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(156, 163, 175);
-    doc.text('Monitor de Inversiones · SSI-MEF', M, 17);
-
-    doc.setFontSize(8);
-    doc.setTextColor(156, 163, 175);
-    doc.text(`Generado: ${fechaGen}`, pageW - M, 14, { align: 'right' });
-
-    y = 29;
-
-    // ── TÍTULO ───────────────────────────────────────────────
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
-    doc.setTextColor(26, 26, 26);
-    doc.text('Reporte de Monitoreo de Inversiones', M, y);
-    y += 7;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(122, 117, 112);
-    doc.text(`Unidad Ejecutora de Inversiones (UEI): ${ueiNombre}`, M, y);
-    y += 10;
-
-    // divider
-    doc.setDrawColor(224, 221, 214);
-    doc.setLineWidth(0.3);
-    doc.line(M, y, pageW - M, y);
-    y += 7;
-
-    // ── KPIs ─────────────────────────────────────────────────
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(122, 117, 112);
-    doc.text('INDICADORES DE EJECUCIÓN', M, y);
-    y += 5;
-
-    const kpis = [
-      { label: 'TOTAL INVERSIONES',  val: document.getElementById('kpi-total').textContent,    sub: 'Con PIM 2026 > 0',          clr: [26,26,26]    },
-      { label: 'PIM 2026',           val: document.getElementById('kpi-pim').textContent,      sub: 'Presupuesto vigente 2026',   clr: [42,125,79]   },
-      { label: 'DEVENGADO 2026',     val: document.getElementById('kpi-dev').textContent,      sub: document.getElementById('stat-dev-pct').textContent, clr: [42,125,79] },
-      { label: 'ALERTAS ROJAS',      val: document.getElementById('kpi-rojos').textContent,    sub: 'Brecha ejec-físico >20%',   clr: [192,57,43]   },
-      { label: 'ALERTAS AMARILLAS',  val: document.getElementById('kpi-amarillos').textContent, sub: 'Requieren atención',        clr: [183,134,11]  },
-    ];
-
-    const kW = (cW - 4 * 3) / 5;
-    kpis.forEach((k, i) => {
-      const kx = M + i * (kW + 3);
-      doc.setFillColor(250, 249, 246);
-      doc.setDrawColor(224, 221, 214);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(kx, y, kW, 21, 2, 2, 'FD');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6);
-      doc.setTextColor(122, 117, 112);
-      doc.text(k.label, kx + 3, y + 5.5);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.setTextColor(...k.clr);
-      doc.text(trunc(k.val, 18), kx + 3, y + 13.5);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.5);
-      doc.setTextColor(122, 117, 112);
-      doc.text(k.sub, kx + 3, y + 19);
-    });
-    y += 26;
-
-    // divider
-    doc.setDrawColor(224, 221, 214);
-    doc.setLineWidth(0.3);
-    doc.line(M, y, pageW - M, y);
-    y += 6;
-
-    // ── TABLE ────────────────────────────────────────────────
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(122, 117, 112);
-    doc.text('DETALLE DE INVERSIONES', M, y);
-    y += 5;
-
-    const cols = [
-      { h: 'Nombre Inversión',    w: 65, maxCh: 45 },
-      { h: 'Entidad registrante', w: 47, maxCh: 32 },
-      { h: 'Código Único',        w: 22, maxCh: 14 },
-      { h: 'PIM 2026 (S/)',       w: 26, maxCh: 16 },
-      { h: 'Dev. 2026 (S/)',      w: 26, maxCh: 16 },
-      { h: 'Av. Físico',          w: 20, maxCh: 10 },
-      { h: 'Av. Ejec.',           w: 20, maxCh: 10 },
-      { h: 'Brecha',              w: 20, maxCh: 10 },
-      { h: 'Alerta',              w: 23, maxCh: 14 },
-    ]; // suma: 65+47+22+26+26+20+20+20+23 = 269
-
-    const rowH = 7;
-    const hdrH = 8;
-
-    const drawTblHeader = (yy) => {
-      doc.setFillColor(15, 15, 15);
-      doc.rect(M, yy, cW, hdrH, 'F');
-      let cx = M;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.5);
-      doc.setTextColor(156, 163, 175);
-      cols.forEach(col => { doc.text(col.h, cx + 2, yy + 5.5); cx += col.w; });
-      return yy + hdrH;
-    };
-
-    y = drawTblHeader(y);
-
-    const data = getInversionesFiltradas()
-      .sort((a, b) => (Number(b.PIM_ANIO_ACTUAL) || 0) - (Number(a.PIM_ANIO_ACTUAL) || 0));
-
-    data.forEach((o, idx) => {
-      if (y + rowH > pageH - 12) {
-        doc.addPage();
-        y = M;
-        y = drawTblHeader(y);
-      }
-
-      if (idx % 2 === 0) {
-        doc.setFillColor(250, 249, 246);
-        doc.rect(M, y, cW, rowH, 'F');
-      }
-      doc.setDrawColor(224, 221, 214);
-      doc.setLineWidth(0.2);
-      doc.line(M, y + rowH, M + cW, y + rowH);
-
-      const devAcum = parseFloat(o.DEVEN_ACUMUL_ANIO_ANT) || 0;
-      const devAnio = parseFloat(o.DEV_ANIO_ACTUAL) || 0;
-      const costo   = parseFloat(o.COSTO_ACTUALIZADO) || 0;
-      const avFin   = costo > 0 ? (devAcum + devAnio) / costo * 100 : 0;
-      const fis     = o.AVANCE_FISICO != null ? parseFloat(o.AVANCE_FISICO) : null;
-      const brecha  = fis != null ? avFin - fis : null;
-
-      const alertaTxt = o.alerta === 'rojo' ? 'Riesgo alto' : o.alerta === 'amarillo' ? 'Riesgo medio' : 'Sin alerta';
-      const alertaClr = o.alerta === 'rojo' ? [192,57,43] : o.alerta === 'amarillo' ? [183,134,11] : [42,125,79];
-
-      const esExtPdf = !!(filtroEntidad && o.ENTIDAD !== filtroEntidad);
-      const cells = [
-        { txt: trunc(o.NOMBRE_INVERSION || '—', cols[0].maxCh), clr: [26,26,26],    bold: true  },
-        { txt: trunc(o.ENTIDAD || '—',           cols[1].maxCh), clr: esExtPdf ? [192,57,43] : [122,117,112], bold: esExtPdf },
-        { txt: trunc(o.CODIGO_UNICO || '—',      cols[2].maxCh), clr: [122,117,112], bold: false },
-        { txt: fmtM(o.PIM_ANIO_ACTUAL),                          clr: [26,26,26],    bold: false },
-        { txt: fmtM(o.DEV_ANIO_ACTUAL),                          clr: [26,26,26],    bold: false },
-        { txt: fis != null ? fis.toFixed(1) + '%' : '—',        clr: [59,130,246],  bold: false },
-        { txt: avFin.toFixed(1) + '%',                           clr: [42,125,79],   bold: false },
-        { txt: brecha != null ? (brecha > 0 ? '+' : '') + brecha.toFixed(1) + '%' : 'S/D', clr: alertaClr, bold: false },
-        { txt: alertaTxt,                                        clr: alertaClr,     bold: true  },
-      ];
-
-      let cx = M;
-      doc.setFontSize(6.5);
-      cells.forEach((cell, ci) => {
-        doc.setFont('helvetica', cell.bold ? 'bold' : 'normal');
-        doc.setTextColor(...cell.clr);
-        doc.text(cell.txt, cx + 2, y + 4.8);
-        cx += cols[ci].w;
-      });
-      y += rowH;
-    });
-
-    if (data.length === 0) {
-      doc.setFillColor(250, 249, 246);
-      doc.rect(M, y, cW, 12, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(122, 117, 112);
-      doc.text('Sin inversiones para mostrar.', M + cW / 2, y + 8, { align: 'center' });
-      y += 12;
-    }
-
-    // ── BLOQUE PROMOCIONAL ───────────────────────────────────
-    y += 10;
-    const promoH = 72;
-    if (y + promoH > pageH - 12) {
-      doc.addPage();
-      y = M + 10;
-    }
-
-    doc.setFillColor(232, 245, 238);
-    doc.setDrawColor(184, 223, 201);
-    doc.setLineWidth(0.4);
-    doc.roundedRect(M, y, cW, promoH, 3, 3, 'FD');
-
-    const px = M + 8;
-    let py = y + 9;
-
-    // Título grande
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(42, 125, 79);
-    doc.text('¿Quieres acelerar la ejecución de inversiones en tu entidad con un enfoque PMO?', px, py);
-    py += 8;
-
-    // Párrafo 1
-    const pW = cW - 16;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(26, 26, 26);
-    const p1 = 'ExpedienteCheck es una plataforma SaaS que transforma el seguimiento de obras públicas en un sistema digital, ordenado y en tiempo real. Centraliza la información del expediente, define claramente los roles (residente, supervisor, responsable y gerente) y asegura trazabilidad completa: quién hizo qué, cuándo y con qué sustento.';
-    const p1Lines = doc.splitTextToSize(p1, pW);
-    doc.text(p1Lines, px, py);
-    py += p1Lines.length * 4 + 2;
-
-    // Párrafo 2
-    const p2 = 'Convierte datos dispersos en un tablero de control que te permite identificar riesgos, destrabar proyectos y tomar decisiones con respaldo técnico. Además, incorpora una vista ejecutiva que facilita una toma de decisiones más ágil y oportuna.';
-    const p2Lines = doc.splitTextToSize(p2, pW);
-    doc.text(p2Lines, px, py);
-    py += p2Lines.length * 4 + 4;
-
-    // Tags
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(42, 125, 79);
-    doc.text('Implementación guiada  ·  Soporte institucional  ·  Configuración por roles  ·  Adaptado al ciclo de inversión pública', px, py);
-    py += 6;
-
-    // Contacto
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(26, 26, 26);
-    doc.text('Agenda demo: info@expedientecheck.com', px, py);
-    py += 5;
-    doc.text('Más información: institucional.expedientecheck.com', px, py);
-
-    // ── FOOTERS EN TODAS LAS PÁGINAS ──────────────────────────
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= totalPages; p++) drawPageFooter(p, totalPages);
-
-    // ── GUARDAR ──────────────────────────────────────────────
-    const fechaSlug = new Date().toISOString().split('T')[0];
-    const ueiSlug   = ueiNombre.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase().substring(0, 40);
-    doc.save(`expedientecheck-reporte-${ueiSlug}-${fechaSlug}.pdf`);
-    toast('Reporte PDF descargado correctamente', 'success');
-
+    await poblarNivel();
+    await Promise.all([
+      cargarKPIs().catch(err => console.warn('KPI fallback:', err.message)),
+      cargarTabla(0)
+    ]);
   } catch (err) {
-    console.error('PDF error:', err);
-    alert('Error al generar PDF: ' + err.message);
-    toast('Error al generar PDF: ' + err.message, 'error');
+    console.error(err);
+    document.getElementById('tbody').innerHTML =
+      `<tr><td colspan="9"><div class="empty-state">Error al cargar datos: ${esc(err.message)}</div></td></tr>`;
+    toast('Error al cargar datos', 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = originalHTML;
+    icon.className = '';
   }
 }
 
-document.getElementById('btn-pdf').addEventListener('click', descargarPDF);
-
-// ── INICIO ───────────────────────────────────────────────────
+document.getElementById('btn-actualizar').addEventListener('click', cargarDatos);
 cargarDatos();
 setInterval(cargarDatos, 5 * 60 * 1000);
 </script>
