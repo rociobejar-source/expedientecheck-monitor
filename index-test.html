@@ -982,6 +982,23 @@ async function poblarNivel() {
   }
 }
 
+// Filtro 1 post-nivel para E y R: pliego_nombre (Ministerio / GR)
+async function poblarPliego() {
+  const LABELS = { E: 'Ministerio / Sector', R: 'Gobierno Regional' };
+  const label = LABELS[filtroNivel] || 'Sector';
+  disableSelect('filter-sector', `— Cargando ${label}... —`);
+  try {
+    const url = `ejecucion_nacional?select=pliego_nombre&pim=gt.0&limit=5000&nivel_gobierno=eq.${encodeURIComponent(filtroNivel)}`;
+    const data = await sbGet(url);
+    const vals = [...new Set(data.map(r => r.pliego_nombre).filter(Boolean))].sort();
+    fillSelect('filter-sector', vals, '— Todos —');
+    document.querySelector('#group-sector label').textContent = label;
+    showGroup('group-sector');
+  } catch (e) {
+    console.warn('poblarPliego:', e.message);
+  }
+}
+
 async function poblarDepartamento() {
   disableSelect('filter-departamento', '— Cargando... —');
   try {
