@@ -612,7 +612,7 @@
 // Para un nuevo deploy: cambia solo SLUG.
 // ══════════════════════════════════════════════════════════════
 const API  = 'https://api.expedientecheck.com';
-const SLUG = 'tacna'; // ← cambiar por el slug de la entidad
+const SLUG = new URLSearchParams(window.location.search).get('e') || 'tacna';
 
 // ── ESTADO ───────────────────────────────────────────────────
 let obras       = [];
