@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ExpedienteCheck · Monitor de Obras MPT Tacna</title>
+  <title>ExpedienteCheck · Monitor de Obras</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
@@ -39,39 +39,6 @@
       position: sticky; top: 0; z-index: 50;
     }
     .logo { color: #ffffff; font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
-    .header-center {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .header-center label {
-      color: #9ca3af;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    .header-center select {
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 6px;
-      color: #ffffff;
-      font-family: var(--sans);
-      font-size: 12px;
-      padding: 6px 10px;
-      outline: none;
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-    .header-center select:hover {
-      background: rgba(255,255,255,0.15);
-      border-color: rgba(255,255,255,0.3);
-    }
-    .header-center select option {
-      background: var(--header);
-      color: #ffffff;
-    }
     .header-right { display: flex; align-items: center; gap: 12px; }
     .header-right #header-rol { color: #9ca3af; font-size: 13px; }
     .btn-ingresar {
@@ -111,11 +78,7 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .role-btn.active {
-      background: var(--header);
-      border-color: var(--header);
-      color: #fff;
-    }
+    .role-btn.active { background: var(--header); border-color: var(--header); color: #fff; }
     .role-btn:hover:not(.active) { border-color: var(--text); color: var(--text); }
 
     /* ── MAIN ── */
@@ -128,8 +91,15 @@
       margin-bottom: 24px;
     }
     .page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
-    .page-title span { font-weight: 300; }
-    .page-subtitle { font-size: 13px; color: var(--muted); margin-top: 3px; }
+    .entidad-nombre {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 4px;
+      margin-bottom: 4px;
+      min-height: 24px;
+    }
+    .page-subtitle { font-size: 13px; color: var(--muted); }
 
     .btn-actualizar {
       background: var(--header);
@@ -188,7 +158,7 @@
     }
     .alert-banner strong { font-weight: 600; }
 
-    /* ── FILTERS ── */
+    /* ── FILTERS (pills) ── */
     .filters { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
     .filter-btn {
       background: var(--surface);
@@ -204,42 +174,6 @@
     }
     .filter-btn.active { background: var(--header); border-color: var(--header); color: #fff; }
     .filter-btn:hover:not(.active) { border-color: var(--text); color: var(--text); }
-
-    /* ── FILTERS SELECTORS ── */
-    .filters-selectors {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 12px;
-      margin-bottom: 20px;
-      padding: 16px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-    }
-    .filter-group label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    .filter-group select {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      color: var(--text);
-      font-family: var(--sans);
-      font-size: 13px;
-      padding: 8px 11px;
-      outline: none;
-      transition: border-color 0.2s;
-      cursor: pointer;
-    }
-    .filter-group select:focus { border-color: var(--accent); }
-    .filter-group select option { padding: 8px; }
 
     /* ── TABLE ── */
     .table-wrap {
@@ -287,11 +221,10 @@
       margin-left: 4px;
       font-weight: 600;
     }
-    .f12b-badge.ok    { background: var(--verde-lt); color: var(--verde); }
-    .f12b-badge.late  { background: var(--rojo-lt);  color: var(--rojo); }
+    .f12b-badge.ok   { background: var(--verde-lt); color: var(--verde); }
+    .f12b-badge.late { background: var(--rojo-lt);  color: var(--rojo); }
 
     .monto { font-family: var(--mono); font-size: 12px; color: var(--text); }
-    .monto-sub { font-size: 11px; color: var(--muted); }
 
     .progress-col { min-width: 130px; }
     .prog-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
@@ -299,15 +232,11 @@
     .prog-label { font-size: 10px; color: var(--muted); width: 14px; }
     .prog-bar { flex: 1; height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
     .prog-fill { height: 100%; border-radius: 99px; }
-    .prog-fill.fisico      { background: #3b82f6; }
-    .prog-fill.financiero  { background: var(--verde); }
+    .prog-fill.fisico     { background: #3b82f6; }
+    .prog-fill.financiero { background: var(--verde); }
     .prog-pct { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 38px; text-align: right; }
 
-    .pct-grande {
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 600;
-    }
+    .pct-grande { font-family: var(--mono); font-size: 13px; font-weight: 600; }
 
     .badge {
       display: inline-flex;
@@ -320,14 +249,12 @@
       white-space: nowrap;
     }
     .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .badge.rojo     { background: var(--rojo-lt);     color: var(--rojo);     }
-    .badge.rojo::before     { background: var(--rojo);     }
+    .badge.rojo     { background: var(--rojo-lt);     color: var(--rojo); }
+    .badge.rojo::before     { background: var(--rojo); }
     .badge.amarillo { background: var(--amarillo-lt); color: var(--amarillo); }
     .badge.amarillo::before { background: var(--amarillo); }
-    .badge.verde    { background: var(--verde-lt);    color: var(--verde);    }
-    .badge.verde::before    { background: var(--verde);    }
-    .badge.gris     { background: #f0ede6;             color: var(--muted);    }
-    .badge.gris::before     { background: var(--muted);    }
+    .badge.gris     { background: #f0ede6; color: var(--muted); }
+    .badge.gris::before     { background: var(--muted); }
 
     .estado-dot {
       display: flex;
@@ -337,11 +264,9 @@
       font-weight: 500;
       white-space: nowrap;
     }
-    .estado-dot::before {
-      content: ''; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-    }
-    .estado-dot.rojo::before     { background: var(--rojo); box-shadow: 0 0 0 3px var(--rojo-lt); }
-    .estado-dot.verde::before    { background: var(--verde); box-shadow: 0 0 0 3px var(--verde-lt); }
+    .estado-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .estado-dot.rojo::before     { background: var(--rojo);     box-shadow: 0 0 0 3px var(--rojo-lt); }
+    .estado-dot.verde::before    { background: var(--verde);    box-shadow: 0 0 0 3px var(--verde-lt); }
     .estado-dot.amarillo::before { background: var(--amarillo); box-shadow: 0 0 0 3px var(--amarillo-lt); }
     .estado-dot.gris::before     { background: #ccc; }
 
@@ -414,13 +339,10 @@
       border-radius: 6px; transition: background 0.15s;
     }
     .modal-close:hover { background: var(--border); }
-
     .modal-title { font-size: 15px; font-weight: 700; line-height: 1.3; padding-right: 36px; }
     .modal-meta  { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .modal-body  { padding: 20px 24px; }
 
-    .modal-body { padding: 20px 24px; }
-
-    /* Info de solo lectura */
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -432,15 +354,9 @@
       text-transform: uppercase; letter-spacing: 0.5px;
       color: var(--muted); margin-bottom: 4px;
     }
-    .info-item .val {
-      font-size: 13px; font-weight: 600;
-      font-family: var(--mono);
-    }
+    .info-item .val { font-size: 13px; font-weight: 600; font-family: var(--mono); }
 
-    .divider {
-      border: none; border-top: 1px solid var(--border);
-      margin: 20px 0;
-    }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
     .section-title-modal {
       font-size: 12px; font-weight: 600;
@@ -471,7 +387,6 @@
     }
     .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
     .field textarea { resize: vertical; min-height: 80px; }
-
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
     .modal-footer {
@@ -525,10 +440,9 @@
       display: flex; align-items: center; gap: 8px;
     }
     #toast.show { transform: translateY(0); opacity: 1; }
-    #toast.success::before { content: '✓'; color: #ffffff; font-weight: 700; }
+    #toast.success::before { content: '✓'; font-weight: 700; }
     #toast.error::before   { content: '✕'; color: #f87171; font-weight: 700; }
 
-    /* Nota pública */
     .public-note {
       background: var(--accent-lt);
       border: 1px solid #b8dfc9;
@@ -568,67 +482,30 @@
   <div class="page-header">
     <div>
       <div class="page-title"><strong>Monitor de Obras en Ejecución</strong></div>
-      <div class="page-subtitle" id="page-subtitle">Datos desde SSI — MEF · <span id="fecha-hoy"></span></div>
-      <div style="font-size: 16px; font-weight: 600; color: var(--accent); margin-top: 12px;">Municipalidad Provincial de Tacna</div>
+      <div class="entidad-nombre" id="entidad-nombre">—</div>
+      <div class="page-subtitle">Datos desde SSI — MEF · <span id="fecha-hoy"></span></div>
     </div>
     <button class="btn-actualizar" id="btn-actualizar">
       <span id="icon-refresh">↻</span> Actualizar datos
     </button>
   </div>
 
-  <!-- FILTERS SELECTORS -->
-  <div class="filters-selectors">
-    <div class="filter-group">
-      <label for="filter-entidad">Entidad</label>
-      <select id="filter-entidad">
-        <option value="">Todas las entidades</option>
-      </select>
-    </div>
-    <div class="filter-group">
-      <label for="filter-departamento">Región / Departamento</label>
-      <select id="filter-departamento">
-        <option value="">Todos los departamentos</option>
-      </select>
-    </div>
-    <div class="filter-group">
-      <label for="filter-provincia">Provincia</label>
-      <select id="filter-provincia">
-        <option value="">Todas las provincias</option>
-      </select>
-    </div>
-    <div class="filter-group">
-      <label for="filter-municipalidad">Municipalidad / Distrito</label>
-      <select id="filter-municipalidad">
-        <option value="">Todas las municipalidades</option>
-      </select>
-    </div>
-    <div class="filter-group">
-      <label for="filter-estado">Riesgo / Alerta</label>
-      <select id="filter-estado">
-        <option value="">Todos</option>
-        <option value="rojo">Riesgo Alto</option>
-        <option value="amarillo">Riesgo Medio</option>
-        <option value="verde">Sin Alerta</option>
-      </select>
-    </div>
-  </div>
-
   <!-- STATS -->
   <div class="stats-grid">
     <div class="stat">
-      <div class="stat-label">Inversiones con PIM 2026</div>
+      <div class="stat-label">Inversiones con PIM</div>
       <div class="stat-value" id="stat-total">—</div>
-      <div class="stat-sub">Con PIM asignado 2026 > 0</div>
+      <div class="stat-sub">Con PIM asignado > 0</div>
     </div>
     <div class="stat">
-      <div class="stat-label">PIM 2026 (S/)</div>
+      <div class="stat-label">PIM (S/)</div>
       <div class="stat-value verde" id="stat-pim">—</div>
-      <div class="stat-sub">Presupuesto vigente 2026</div>
+      <div class="stat-sub">Presupuesto vigente</div>
     </div>
     <div class="stat">
-      <div class="stat-label">Devengado 2026 (S/)</div>
+      <div class="stat-label">Devengado (S/)</div>
       <div class="stat-value verde" id="stat-devengado">—</div>
-      <div class="stat-sub" id="stat-dev-pct">% del PIM 2026</div>
+      <div class="stat-sub" id="stat-dev-pct">% del PIM</div>
     </div>
     <div class="stat">
       <div class="stat-label">Alertas Rojas</div>
@@ -645,8 +522,8 @@
   <!-- ALERT BANNER -->
   <div class="alert-banner" id="alert-banner"></div>
 
-  <!-- FILTERS -->
-  <div class="filters" id="filters">
+  <!-- FILTERS (pills) -->
+  <div class="filters">
     <button class="filter-btn active" data-filter="todas">Todas (<span id="f-total">0</span>)</button>
     <button class="filter-btn" data-filter="rojo">Riesgo alto (<span id="f-rojo">0</span>)</button>
     <button class="filter-btn" data-filter="amarillo">Riesgo medio (<span id="f-amarillo">0</span>)</button>
@@ -663,9 +540,9 @@
           <th>Costo Proyecto (S/)</th>
           <th>Av. Físico Acum.</th>
           <th>Av. Financiero Acum.</th>
-          <th>PIM 2026 (S/)</th>
-          <th>Dev. 2026 (S/)</th>
-          <th>Av. 2026 %</th>
+          <th>PIM (S/)</th>
+          <th>Dev. (S/)</th>
+          <th>Av. %</th>
           <th>Alertas</th>
           <th>Estado</th>
           <th></th>
@@ -684,43 +561,19 @@
     <div class="modal-header">
       <button class="modal-close" id="modal-close">×</button>
       <div class="modal-title" id="modal-title">—</div>
-      <div class="modal-meta" id="modal-meta">—</div>
+      <div class="modal-meta"  id="modal-meta">—</div>
     </div>
     <div class="modal-body">
-
-      <!-- Info solo lectura -->
       <div class="info-grid">
-        <div class="info-item">
-          <label>CUI</label>
-          <div class="val" id="d-cui">—</div>
-        </div>
-        <div class="info-item">
-          <label>Costo proyecto</label>
-          <div class="val" id="d-costo">—</div>
-        </div>
-        <div class="info-item">
-          <label>Avance físico</label>
-          <div class="val" id="d-fisico">—</div>
-        </div>
-        <div class="info-item">
-          <label>Avance financiero</label>
-          <div class="val" id="d-financiero">—</div>
-        </div>
-        <div class="info-item">
-          <label>PIM 2026</label>
-          <div class="val" id="d-pim">—</div>
-        </div>
-        <div class="info-item">
-          <label>Devengado 2026</label>
-          <div class="val" id="d-devengado">—</div>
-        </div>
+        <div class="info-item"><label>CUI</label><div class="val" id="d-cui">—</div></div>
+        <div class="info-item"><label>Costo proyecto</label><div class="val" id="d-costo">—</div></div>
+        <div class="info-item"><label>Avance físico</label><div class="val" id="d-fisico">—</div></div>
+        <div class="info-item"><label>Avance financiero</label><div class="val" id="d-financiero">—</div></div>
+        <div class="info-item"><label>PIM</label><div class="val" id="d-pim">—</div></div>
+        <div class="info-item"><label>Devengado</label><div class="val" id="d-devengado">—</div></div>
       </div>
-
       <hr class="divider"/>
-
-      <!-- Sección editable -->
       <div class="section-title-modal" id="modal-edit-title">Registro de seguimiento</div>
-
       <div class="field-row">
         <div class="field">
           <label>Avance físico (%)</label>
@@ -731,26 +584,22 @@
           <input type="number" id="inp-financiero" min="0" max="100" step="0.1" placeholder="0.0"/>
         </div>
       </div>
-
       <div class="field">
         <label>Situación actual de la obra</label>
         <textarea id="inp-situacion" placeholder="Describe el estado actual de la obra, avances recientes, etc."></textarea>
       </div>
-
       <div class="field">
         <label>Punto crítico / Alerta</label>
         <textarea id="inp-critico" placeholder="Indica si hay problemas, paralizaciones, riesgos o situaciones que requieran atención..." style="min-height:70px"></textarea>
       </div>
-
       <div class="field">
         <label>Contratista</label>
         <input type="text" id="inp-contratista" placeholder="Nombre del contratista ejecutor"/>
       </div>
-
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" id="btn-cancel">Cancelar</button>
-      <button class="btn-save" id="btn-save">Guardar registro</button>
+      <button class="btn-save"   id="btn-save">Guardar registro</button>
     </div>
   </div>
 </div>
@@ -758,60 +607,53 @@
 <div id="toast"></div>
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────────
-const API = 'https://api.expedientecheck.com';
+// ══════════════════════════════════════════════════════════════
+// CONFIG — único lugar donde se define la entidad.
+// Para un nuevo deploy: cambia solo SLUG.
+// ══════════════════════════════════════════════════════════════
+const API  = 'https://api.expedientecheck.com';
+const SLUG = 'tacna'; // ← cambiar por el slug de la entidad
 
 // ── ESTADO ───────────────────────────────────────────────────
-let obras              = [];
-let filtro             = 'todas';
-let rolActivo          = 'ciudadana';
-let obraActual         = null;
-let filtroEntidad      = '';
-let filtroDepartamento = '';
-let filtroProvincia    = '';
-let filtroMunicipalidad = '';
-let filtroEstado       = '';
-let municipalidadSelected = 'tacna';
+let obras       = [];
+let kpisEntidad = null;
+let filtro      = 'todas';
+let rolActivo   = 'ciudadana';
+let obraActual  = null;
 
 // ── FECHA ────────────────────────────────────────────────────
 document.getElementById('fecha-hoy').textContent =
   new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
 
 // ── UTILS ────────────────────────────────────────────────────
-const fmtM  = v => {
+const fmtM = v => {
   const n = Number(v);
   if (!v || isNaN(n) || n <= 0) return '—';
-  if (n >= 1e6) return 'S/ ' + (n/1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return 'S/ ' + (n/1e3).toFixed(0) + 'K';
+  if (n >= 1e6) return 'S/ ' + (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return 'S/ ' + (n / 1e3).toFixed(0) + 'K';
   return 'S/ ' + n.toFixed(0);
 };
-const fmtPct = v => v != null ? Number(v).toFixed(1)+'%' : '—';
-const fmtFecha = iso => iso
-  ? new Date(iso).toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'})
-  : '—';
+const fmtPct = v => v != null ? Number(v).toFixed(1) + '%' : '—';
 
-function toast(msg, tipo='success') {
+function toast(msg, tipo = 'success') {
   const el = document.getElementById('toast');
   el.textContent = msg;
   el.className = `show ${tipo}`;
-  setTimeout(()=> el.className='', 3000);
+  setTimeout(() => el.className = '', 3000);
 }
 
 // ── ROLES ────────────────────────────────────────────────────
 document.querySelectorAll('.role-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    const rol = btn.dataset.rol;
-
-    // Vista Ciudadana - cambio normal
     document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    rolActivo = rol;
+    rolActivo = btn.dataset.rol;
     document.getElementById('header-rol').textContent = 'Vista ciudadana';
     renderTabla();
   });
 });
 
-// ── FILTROS ──────────────────────────────────────────────────
+// ── FILTROS (pills) ──────────────────────────────────────────
 document.querySelectorAll('.filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -823,68 +665,70 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 
 // ── CARGAR DATOS ─────────────────────────────────────────────
 async function cargarObras() {
-  const btn = document.getElementById('btn-actualizar');
+  const btn  = document.getElementById('btn-actualizar');
   const icon = document.getElementById('icon-refresh');
-  btn.disabled = true;
-  icon.className = 'spin';
+  btn.disabled     = true;
+  icon.className   = 'spin';
   icon.textContent = '↻';
 
   try {
-    const res  = await fetch(`${API}/api/obras`);
-    const data = await res.json();
-    obras = data.obras || [];
+    const [resObras, resEntidad] = await Promise.all([
+      fetch(`${API}/api/obras`),
+      fetch(`${API}/api/entidad/${SLUG}`)
+    ]);
 
-    // Actualizar mensaje según si hay información manual
-    const tieneDatosManual = obras.some(o => o.actualizado_manualmente);
-    const noteText = document.getElementById('public-note-text');
-    if (tieneDatosManual) {
-      noteText.textContent = 'Data de ejecución de inversiones sincronizada diariamente con la información del SSI-MEF e InfoObras · Contiene actualizaciones manuales';
-    } else {
-      noteText.textContent = 'Data de ejecución de inversiones sincronizada diariamente con la información del SSI-MEF e InfoObras';
+    const dataObras   = await resObras.json();
+    const dataEntidad = await resEntidad.json();
+
+    obras       = dataObras.obras || [];
+    kpisEntidad = dataEntidad;
+
+    // Nombre de la entidad desde el API
+    if (dataEntidad.entidad?.nombre) {
+      document.getElementById('entidad-nombre').textContent = dataEntidad.entidad.nombre;
+      document.title = `ExpedienteCheck · ${dataEntidad.entidad.nombre}`;
     }
 
-    cargarOpcionesFiltros();
-    preseleccionarFiltrosTacna();
+    // Nota de datos manuales
+    const tieneDatosManual = obras.some(o => o.actualizado_manualmente);
+    document.getElementById('public-note-text').textContent = tieneDatosManual
+      ? 'Data sincronizada diariamente con SSI-MEF e InfoObras · Contiene actualizaciones manuales'
+      : 'Data de ejecución de inversiones sincronizada diariamente con la información del SSI-MEF e InfoObras';
+
     renderStats();
     renderFiltros();
     renderTabla();
-  } catch(err) {
+
+  } catch (err) {
     document.getElementById('tbody').innerHTML =
       `<tr><td colspan="11"><div class="empty-state">Error al cargar datos. Verifica tu conexión.</div></td></tr>`;
+    console.error('Error cargando datos:', err);
   } finally {
-    btn.disabled = false;
+    btn.disabled   = false;
     icon.className = '';
   }
 }
 
 document.getElementById('btn-actualizar').addEventListener('click', cargarObras);
 
-// ── STATS ────────────────────────────────────────────────────
+// ── STATS — siempre desde el API ─────────────────────────────
 function renderStats() {
-  // Aplicar filtros selectores
-  let obrasFiltradasPorSelectores = obras.filter(o => {
-    const cumpleEntidad = !filtroEntidad || (o.entidad_nombre || o.entidad) === filtroEntidad;
-    const cumpleDepartamento = !filtroDepartamento || o.departamento === filtroDepartamento;
-    const cumpleProvincia = !filtroProvincia || o.provincia === filtroProvincia;
-    const cumpleMunicipalidad = !filtroMunicipalidad || o.distrito === filtroMunicipalidad;
-    const cumpleAlerta = !filtroEstado || o.alerta === filtroEstado;
-    return cumpleEntidad && cumpleDepartamento && cumpleProvincia && cumpleMunicipalidad && cumpleAlerta;
-  });
+  if (!kpisEntidad) return;
 
-  const conPim  = obrasFiltradasPorSelectores.filter(o => o.pim_2026 > 0);
-  const totalPim   = obrasFiltradasPorSelectores.reduce((s,o)=> s+(o.pim_2026||0), 0);
-  const totalDev   = obrasFiltradasPorSelectores.reduce((s,o)=> s+(o.devengado_2026||0), 0);
-  const rojas      = obrasFiltradasPorSelectores.filter(o => o.alerta==='rojo').length;
-  const amarillas  = obrasFiltradasPorSelectores.filter(o => o.alerta==='amarillo').length;
-  const pct = totalPim > 0 ? ((totalDev/totalPim)*100).toFixed(1) : '—';
+  const s   = kpisEntidad.ssi;
+  const i   = kpisEntidad.infobras;
+  const pct = s.pim_total > 0
+    ? ((s.devengado_total / s.pim_total) * 100).toFixed(1)
+    : '—';
 
-  document.getElementById('stat-total').textContent    = conPim.length || obrasFiltradasPorSelectores.length;
-  document.getElementById('stat-pim').textContent      = fmtM(totalPim);
-  document.getElementById('stat-devengado').textContent= fmtM(totalDev);
-  document.getElementById('stat-rojo').textContent     = rojas;
-  document.getElementById('stat-amarillo').textContent = amarillas;
-  document.getElementById('stat-dev-pct').textContent  = `${pct}% del PIM 2026`;
+  document.getElementById('stat-total').textContent     = s.total;
+  document.getElementById('stat-pim').textContent       = fmtM(s.pim_total);
+  document.getElementById('stat-devengado').textContent = fmtM(s.devengado_total);
+  document.getElementById('stat-rojo').textContent      = i.por_alerta?.rojo     ?? 0;
+  document.getElementById('stat-amarillo').textContent  = i.por_alerta?.amarillo  ?? 0;
+  document.getElementById('stat-dev-pct').textContent   = `${pct}% del PIM`;
 
+  const rojas  = i.por_alerta?.rojo ?? 0;
   const banner = document.getElementById('alert-banner');
   if (rojas > 0) {
     banner.style.display = 'block';
@@ -894,203 +738,47 @@ function renderStats() {
   }
 }
 
-// ── CONTADORES FILTROS ───────────────────────────────────────
+// ── CONTADORES PILLS ─────────────────────────────────────────
 function renderFiltros() {
-  // Aplicar filtros selectores primero
-  let obrasFiltradasPorSelectores = obras.filter(o => {
-    const cumpleEntidad = !filtroEntidad || (o.entidad_nombre || o.entidad) === filtroEntidad;
-    const cumpleDepartamento = !filtroDepartamento || o.departamento === filtroDepartamento;
-    const cumpleProvincia = !filtroProvincia || o.provincia === filtroProvincia;
-    const cumpleMunicipalidad = !filtroMunicipalidad || o.distrito === filtroMunicipalidad;
-    const cumpleAlerta = !filtroEstado || o.alerta === filtroEstado;
-    return cumpleEntidad && cumpleDepartamento && cumpleProvincia && cumpleMunicipalidad && cumpleAlerta;
-  });
-
-  document.getElementById('f-total').textContent    = obrasFiltradasPorSelectores.length;
-  document.getElementById('f-rojo').textContent     = obrasFiltradasPorSelectores.filter(o=>o.alerta==='rojo').length;
-  document.getElementById('f-amarillo').textContent = obrasFiltradasPorSelectores.filter(o=>o.alerta==='amarillo').length;
-  document.getElementById('f-verde').textContent    = obrasFiltradasPorSelectores.filter(o=>o.alerta==='verde'||!o.alerta).length;
+  document.getElementById('f-total').textContent    = obras.length;
+  document.getElementById('f-rojo').textContent     = obras.filter(o => o.alerta === 'rojo').length;
+  document.getElementById('f-amarillo').textContent = obras.filter(o => o.alerta === 'amarillo').length;
+  document.getElementById('f-verde').textContent    = obras.filter(o => o.alerta === 'verde' || !o.alerta).length;
 }
-
-// ── CARGAR OPCIONES DE FILTROS ────────────────────────────────
-function cargarOpcionesFiltros() {
-  if (!obras.length) return;
-
-  // Obtener valores únicos
-  const entidades = [...new Set(obras.map(o => o.entidad_nombre || o.entidad).filter(e => e))].sort();
-  const departamentos = [...new Set(obras.map(o => o.departamento).filter(d => d))].sort();
-  const provincias = [...new Set(obras.map(o => o.provincia).filter(p => p))].sort();
-  const municipalidades = [...new Set(obras.map(o => o.distrito).filter(d => d))].sort();
-
-  // ENTIDAD
-  const selectEntidad = document.getElementById('filter-entidad');
-  selectEntidad.innerHTML = '<option value="">Todas las entidades</option>';
-  entidades.forEach(e => {
-    const opt = document.createElement('option');
-    opt.value = e;
-    opt.textContent = e;
-    selectEntidad.appendChild(opt);
-  });
-  if (entidades.length === 1) {
-    selectEntidad.value = entidades[0];
-    filtroEntidad = entidades[0];
-  }
-
-  // DEPARTAMENTO
-  const selectDepartamento = document.getElementById('filter-departamento');
-  selectDepartamento.innerHTML = '<option value="">Todos los departamentos</option>';
-  departamentos.forEach(d => {
-    const opt = document.createElement('option');
-    opt.value = d;
-    opt.textContent = d;
-    selectDepartamento.appendChild(opt);
-  });
-  if (departamentos.length === 1) {
-    selectDepartamento.value = departamentos[0];
-    filtroDepartamento = departamentos[0];
-  }
-
-  // PROVINCIA
-  const selectProvincia = document.getElementById('filter-provincia');
-  selectProvincia.innerHTML = '<option value="">Todas las provincias</option>';
-  provincias.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p;
-    opt.textContent = p;
-    selectProvincia.appendChild(opt);
-  });
-  if (provincias.length === 1) {
-    selectProvincia.value = provincias[0];
-    filtroProvincia = provincias[0];
-  }
-
-  // MUNICIPALIDAD
-  const selectMunicipalidad = document.getElementById('filter-municipalidad');
-  selectMunicipalidad.innerHTML = '<option value="">Todas las municipalidades</option>';
-  municipalidades.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m;
-    opt.textContent = m;
-    selectMunicipalidad.appendChild(opt);
-  });
-  if (municipalidades.length === 1) {
-    selectMunicipalidad.value = municipalidades[0];
-    filtroMunicipalidad = municipalidades[0];
-  }
-}
-
-// ── PRE-SELECCIONAR FILTROS DE TACNA ──────────────────────————
-function preseleccionarFiltrosTacna() {
-  try {
-    // Pre-seleccionar automáticamente si hay solo una opción
-    const selectEntidad = document.getElementById('filter-entidad');
-    if (selectEntidad.options.length === 1) {
-      selectEntidad.selectedIndex = 0;
-      filtroEntidad = selectEntidad.value;
-    }
-  } catch(e) { console.log('No se pudo pre-seleccionar entidad'); }
-
-  try {
-    const selectDepartamento = document.getElementById('filter-departamento');
-    if (selectDepartamento.options.length === 1) {
-      selectDepartamento.selectedIndex = 0;
-      filtroDepartamento = selectDepartamento.value;
-    }
-  } catch(e) { console.log('No se pudo pre-seleccionar departamento'); }
-
-  try {
-    const selectProvincia = document.getElementById('filter-provincia');
-    if (selectProvincia.options.length === 1) {
-      selectProvincia.selectedIndex = 0;
-      filtroProvincia = selectProvincia.value;
-    }
-  } catch(e) { console.log('No se pudo pre-seleccionar provincia'); }
-
-  try {
-    const selectMunicipalidad = document.getElementById('filter-municipalidad');
-    if (selectMunicipalidad.options.length === 1) {
-      selectMunicipalidad.selectedIndex = 0;
-      filtroMunicipalidad = selectMunicipalidad.value;
-    }
-  } catch(e) { console.log('No se pudo pre-seleccionar municipalidad'); }
-}
-document.getElementById('filter-entidad').addEventListener('change', (e) => {
-  filtroEntidad = e.target.value;
-  renderStats();
-  renderTabla();
-});
-
-document.getElementById('filter-departamento').addEventListener('change', (e) => {
-  filtroDepartamento = e.target.value;
-  renderStats();
-  renderTabla();
-});
-
-document.getElementById('filter-provincia').addEventListener('change', (e) => {
-  filtroProvincia = e.target.value;
-  renderStats();
-  renderTabla();
-});
-
-document.getElementById('filter-municipalidad').addEventListener('change', (e) => {
-  filtroMunicipalidad = e.target.value;
-  renderStats();
-  renderTabla();
-});
-
-document.getElementById('filter-estado').addEventListener('change', (e) => {
-  filtroEstado = e.target.value;
-  renderStats();
-  renderFiltros();
-  renderTabla();
-});
 
 // ── TABLA ────────────────────────────────────────────────────
 function renderTabla() {
   const tbody = document.getElementById('tbody');
 
-  // Aplica filtros de selectores primero
-  let obrasFiltradasPorSelectores = obras.filter(o => {
-    const cumpleEntidad = !filtroEntidad || (o.entidad_nombre || o.entidad) === filtroEntidad;
-    const cumpleDepartamento = !filtroDepartamento || o.departamento === filtroDepartamento;
-    const cumpleProvincia = !filtroProvincia || o.provincia === filtroProvincia;
-    const cumpleMunicipalidad = !filtroMunicipalidad || o.distrito === filtroMunicipalidad;
-    const cumpleAlerta = !filtroEstado || o.alerta === filtroEstado;
-    return cumpleEntidad && cumpleDepartamento && cumpleProvincia && cumpleMunicipalidad && cumpleAlerta;
-  });
-
-  // Luego aplica filtro por alerta
-  let filtradas = filtro === 'todas' ? obrasFiltradasPorSelectores
-    : filtro === 'verde' ? obrasFiltradasPorSelectores.filter(o=>o.alerta==='verde'||!o.alerta)
-    : obrasFiltradasPorSelectores.filter(o=>o.alerta===filtro);
+  let filtradas = filtro === 'todas' ? obras
+    : filtro === 'verde' ? obras.filter(o => o.alerta === 'verde' || !o.alerta)
+    : obras.filter(o => o.alerta === filtro);
 
   if (!filtradas.length) {
     tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state">Sin obras para mostrar</div></td></tr>`;
     return;
   }
 
-  // Ordenar: por PIM 2026 descendente
-  filtradas = [...filtradas].sort((a,b) => (b.pim_2026||0) - (a.pim_2026||0));
+  filtradas = [...filtradas].sort((a, b) => (b.pim_2026 || 0) - (a.pim_2026 || 0));
 
   const puedeEditar = rolActivo !== 'ciudadana';
 
   tbody.innerHTML = filtradas.map(o => {
-    const alerta   = o.alerta || 'verde';
-    const fis      = o.avance_fisico     != null ? Number(o.avance_fisico)     : null;
-    const fin      = o.avance_financiero != null ? Number(o.avance_financiero) : null;
-    const avPct    = o.avance_2026_pct   != null ? Number(o.avance_2026_pct)   : null;
-    const costo    = o.costo_proyecto    != null ? Number(o.costo_proyecto)    : null;
-    const brecha   = (fis!=null&&fin!=null) ? (fin-fis).toFixed(1) : null;
+    const alerta = o.alerta || 'verde';
+    const fis    = o.avance_fisico     != null ? Number(o.avance_fisico)     : null;
+    const fin    = o.avance_financiero != null ? Number(o.avance_financiero) : null;
+    const avPct  = o.avance_2026_pct   != null ? Number(o.avance_2026_pct)   : null;
+    const brecha = (fis != null && fin != null) ? (fin - fis).toFixed(1) : null;
 
-    const badgeAlerta = alerta==='rojo'
+    const badgeAlerta = alerta === 'rojo'
       ? `<span class="badge rojo">Brecha >20%</span>`
-      : alerta==='amarillo'
+      : alerta === 'amarillo'
       ? `<span class="badge amarillo">Brecha ${brecha}%</span>`
       : `<span class="badge gris">Sin alertas</span>`;
 
-    const estadoDot = alerta==='rojo'
+    const estadoDot = alerta === 'rojo'
       ? `<span class="estado-dot rojo">Riesgo alto</span>`
-      : alerta==='amarillo'
+      : alerta === 'amarillo'
       ? `<span class="estado-dot amarillo">Atención</span>`
       : `<span class="estado-dot verde">Sin alerta</span>`;
 
@@ -1098,7 +786,7 @@ function renderTabla() {
     <tr>
       <td>
         <div class="obra-nombre">${o.nombre || 'Sin nombre'}</div>
-        <div class="obra-entidad">${o.entidad || 'MPT · '+( o.modalidad||'')}</div>
+        <div class="obra-entidad">${o.entidad || o.modalidad || ''}</div>
         <div>
           <span class="cui-badge">${o.cui}</span>
           ${o.f12b_dias_retraso > 0 ? `<span class="f12b-badge late">F12B +${o.f12b_dias_retraso}d</span>` : ''}
@@ -1109,24 +797,20 @@ function renderTabla() {
       <td class="progress-col">
         <div class="prog-row">
           <span class="prog-label">F</span>
-          <div class="prog-bar"><div class="prog-fill fisico" style="width:${fis||0}%"></div></div>
+          <div class="prog-bar"><div class="prog-fill fisico" style="width:${fis || 0}%"></div></div>
           <span class="prog-pct">${fmtPct(fis)}</span>
         </div>
       </td>
       <td class="progress-col">
         <div class="prog-row">
           <span class="prog-label">$</span>
-          <div class="prog-bar"><div class="prog-fill financiero" style="width:${Math.min(fin||0,100)}%"></div></div>
+          <div class="prog-bar"><div class="prog-fill financiero" style="width:${Math.min(fin || 0, 100)}%"></div></div>
           <span class="prog-pct">${fmtPct(fin)}</span>
         </div>
       </td>
       <td class="monto">${fmtM(o.pim_2026)}</td>
       <td class="monto">${fmtM(o.devengado_2026)}</td>
-      <td>
-        <span class="pct-grande ${alerta==='rojo'?'':''}">
-          ${avPct!=null ? avPct.toFixed(1)+'%' : fmtPct(fin)}
-        </span>
-      </td>
+      <td><span class="pct-grande">${avPct != null ? avPct.toFixed(1) + '%' : fmtPct(fin)}</span></td>
       <td>${badgeAlerta}</td>
       <td>${estadoDot}</td>
       <td>
@@ -1139,22 +823,14 @@ function renderTabla() {
 
   tbody.querySelectorAll('.btn-detalle').forEach(btn => {
     btn.addEventListener('click', () => {
-      const id = parseInt(btn.dataset.id);
-      const obra = obras.find(o=>o.id===id);
+      const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
       if (!obra) return;
-
-      // Verificar si hay sesión activa
       const token = localStorage.getItem('expediente_token');
-      const cui = obra.cui;
-
       if (token) {
-        // Guardar la obra completa en localStorage para que fichatecnicaCUI la use
         localStorage.setItem('obra_actual', JSON.stringify(obra));
-        // Hay sesión activa → ir directo a fichatecnicaCUI.html
-        window.location.href = `fichatecnicaCUI.html?cui=${cui}`;
+        window.location.href = `fichatecnicaCUI.html?cui=${obra.cui}`;
       } else {
-        // No hay sesión → ir a login con parámetro cui
-        window.location.href = `login.html?cui=${cui}`;
+        window.location.href = `login.html?cui=${obra.cui}`;
       }
     });
   });
@@ -1162,80 +838,59 @@ function renderTabla() {
 
 // ── MODAL ────────────────────────────────────────────────────
 function abrirModal(obra) {
-  // En Vista Ciudadana, mostrar modal bloqueado
-  if (rolActivo === 'ciudadana') {
-    mostrarModalBloqueado(obra);
-    return;
-  }
-
-  // Para Vista Institucional
-  abrirModalEditable(obra);
+  rolActivo === 'ciudadana' ? mostrarModalBloqueado(obra) : abrirModalEditable(obra);
 }
 
 function mostrarModalBloqueado(obra) {
   obraActual = obra;
+  document.getElementById('modal-title').textContent = obra.nombre || 'Sin nombre';
+  document.getElementById('modal-meta').textContent  = `CUI ${obra.cui}`;
 
-  document.getElementById('modal-title').textContent    = obra.nombre || 'Sin nombre';
-  document.getElementById('modal-meta').textContent     = `CUI ${obra.cui}`;
-
-  // Ocultar toda la grid de información
-  document.querySelector('.info-grid').style.display = 'none';
-
-  // Ocultar el divider
-  document.querySelector('.divider').style.display = 'none';
-
-  // Ocultar título de edición
+  document.querySelector('.info-grid').style.display        = 'none';
+  document.querySelector('.divider').style.display          = 'none';
   document.getElementById('modal-edit-title').style.display = 'none';
 
-  // Ocultar campos de edición excepto fisico, financiero y contratista
-  ['inp-situacion','inp-critico'].forEach(id => {
+  ['inp-situacion', 'inp-critico'].forEach(id => {
     const field = document.getElementById(id).closest('.field');
     if (field) field.style.display = 'none';
   });
 
-  // Mostrar solo avance físico y financiero (pero deshabilitados)
-  document.getElementById('inp-fisico').value = obra.avance_fisico || 0;
-  document.getElementById('inp-fisico').disabled = true;
-  document.getElementById('inp-fisico').closest('.field').style.display = 'block';
+  const fisEl = document.getElementById('inp-fisico');
+  fisEl.value    = obra.avance_fisico || 0;
+  fisEl.disabled = true;
+  fisEl.closest('.field').style.display = 'block';
 
-  document.getElementById('inp-financiero').value = obra.avance_financiero || 0;
-  document.getElementById('inp-financiero').disabled = true;
-  document.getElementById('inp-financiero').closest('.field').style.display = 'block';
+  const finEl = document.getElementById('inp-financiero');
+  finEl.value    = obra.avance_financiero || 0;
+  finEl.disabled = true;
+  finEl.closest('.field').style.display = 'block';
 
-  // Mostrar campo de contratista (para SEACE en futuro)
-  document.getElementById('inp-contratista').value = obra.contratista || '';
-  document.getElementById('inp-contratista').disabled = true;
-  document.getElementById('inp-contratista').closest('.field').style.display = 'block';
+  const conEl = document.getElementById('inp-contratista');
+  conEl.value    = obra.contratista || '';
+  conEl.disabled = true;
+  conEl.closest('.field').style.display = 'block';
 
   document.getElementById('btn-save').style.display = 'none';
   document.getElementById('btn-cancel').textContent = 'Cerrar';
 
-  // Mostrar mensaje de bloqueo
-  const fieldRow = document.querySelector('.field-row');
   if (!document.querySelector('.modal-bloqueo-msg')) {
     const msg = document.createElement('div');
     msg.className = 'modal-bloqueo-msg';
     msg.innerHTML = `
-      <div style="background: var(--rojo-lt); border: 1px solid #f5c6c2; border-radius: 8px; padding: 14px; margin-top: 20px; margin-bottom: 0; color: var(--rojo); font-size: 13px; text-align: center;">
+      <div style="background:var(--rojo-lt);border:1px solid #f5c6c2;border-radius:8px;padding:14px;margin-top:20px;color:var(--rojo);font-size:13px;text-align:center;">
         <strong>📌 Acceso limitado</strong><br/>
         Para editar información, accede a <strong>Vista institucional</strong>
-        <div style="margin-top: 10px;">
-          <button id="btn-ir-institucional" style="background: var(--rojo); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: opacity 0.2s;">
+        <div style="margin-top:10px;">
+          <button id="btn-ir-institucional" style="background:var(--rojo);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">
             Ir a Vista institucional
           </button>
         </div>
-      </div>
-    `;
-    fieldRow.parentElement.appendChild(msg);
-
-    // Event listener para botón
+      </div>`;
+    document.querySelector('.field-row').parentElement.appendChild(msg);
     document.getElementById('btn-ir-institucional').addEventListener('click', () => {
-      const token = localStorage.getItem('expediente_token');
-      if (!token) {
-        window.location.href = 'login.html?redirect=institucional';
-      } else {
-        window.location.href = 'institutional.html';
-      }
+      window.location.href = localStorage.getItem('expediente_token')
+        ? 'institutional.html'
+        : 'login.html?redirect=institucional';
     });
   }
 
@@ -1244,25 +899,25 @@ function mostrarModalBloqueado(obra) {
 
 function abrirModalEditable(obra) {
   obraActual = obra;
-  const puedeEditar = true; // Always editable in institutional view
 
-  document.getElementById('modal-title').textContent    = obra.nombre || 'Sin nombre';
-  document.getElementById('modal-meta').textContent     = `CUI ${obra.cui} · ${obra.contratista || 'Sin contratista registrado'}`;
-  document.getElementById('d-cui').textContent          = obra.cui;
-  document.getElementById('d-costo').textContent        = obra.costo_proyecto ? 'S/ ' + Number(obra.costo_proyecto).toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
-  document.getElementById('d-fisico').textContent       = fmtPct(obra.avance_fisico);
-  document.getElementById('d-financiero').textContent   = fmtPct(obra.avance_financiero);
-  document.getElementById('d-pim').textContent          = fmtM(obra.pim_2026);
-  document.getElementById('d-devengado').textContent    = fmtM(obra.devengado_2026);
+  document.getElementById('modal-title').textContent  = obra.nombre || 'Sin nombre';
+  document.getElementById('modal-meta').textContent   = `CUI ${obra.cui} · ${obra.contratista || 'Sin contratista registrado'}`;
+  document.getElementById('d-cui').textContent        = obra.cui;
+  document.getElementById('d-costo').textContent      = obra.costo_proyecto
+    ? 'S/ ' + Number(obra.costo_proyecto).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '—';
+  document.getElementById('d-fisico').textContent     = fmtPct(obra.avance_fisico);
+  document.getElementById('d-financiero').textContent = fmtPct(obra.avance_financiero);
+  document.getElementById('d-pim').textContent        = fmtM(obra.pim_2026);
+  document.getElementById('d-devengado').textContent  = fmtM(obra.devengado_2026);
 
-  document.getElementById('inp-fisico').value       = obra.avance_fisico    || 0;
-  document.getElementById('inp-financiero').value   = obra.avance_financiero|| 0;
-  document.getElementById('inp-situacion').value    = obra.situacion         || '';
-  document.getElementById('inp-critico').value      = obra.punto_critico     || '';
-  document.getElementById('inp-contratista').value  = obra.contratista       || '';
+  document.getElementById('inp-fisico').value      = obra.avance_fisico     || 0;
+  document.getElementById('inp-financiero').value  = obra.avance_financiero || 0;
+  document.getElementById('inp-situacion').value   = obra.situacion         || '';
+  document.getElementById('inp-critico').value     = obra.punto_critico     || '';
+  document.getElementById('inp-contratista').value = obra.contratista       || '';
 
-  // Habilitar todos los campos
-  ['inp-fisico','inp-financiero','inp-situacion','inp-critico','inp-contratista'].forEach(id => {
+  ['inp-fisico', 'inp-financiero', 'inp-situacion', 'inp-critico', 'inp-contratista'].forEach(id => {
     document.getElementById(id).disabled = false;
   });
 
@@ -1270,7 +925,6 @@ function abrirModalEditable(obra) {
   document.getElementById('btn-save').style.display = 'block';
   document.getElementById('btn-cancel').textContent = 'Cancelar';
 
-  // Remover mensaje de bloqueo si existe
   const bloqMsg = document.querySelector('.modal-bloqueo-msg');
   if (bloqMsg) bloqMsg.remove();
 
@@ -1295,11 +949,11 @@ document.getElementById('btn-save').addEventListener('click', async () => {
   btn.disabled = true; btn.textContent = 'Guardando...';
 
   const payload = {
-    avance_fisico:      parseFloat(document.getElementById('inp-fisico').value),
-    avance_financiero:  parseFloat(document.getElementById('inp-financiero').value),
-    situacion:          document.getElementById('inp-situacion').value,
-    punto_critico:      document.getElementById('inp-critico').value,
-    contratista:        document.getElementById('inp-contratista').value,
+    avance_fisico:     parseFloat(document.getElementById('inp-fisico').value),
+    avance_financiero: parseFloat(document.getElementById('inp-financiero').value),
+    situacion:         document.getElementById('inp-situacion').value,
+    punto_critico:     document.getElementById('inp-critico').value,
+    contratista:       document.getElementById('inp-contratista').value,
   };
 
   try {
@@ -1314,13 +968,12 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
 
-    // Actualizar local
-    const idx = obras.findIndex(o=>o.id===obraActual.id);
+    const idx = obras.findIndex(o => o.id === obraActual.id);
     if (idx !== -1) obras[idx] = { ...obras[idx], ...payload, alerta: data.alerta };
     renderStats(); renderFiltros(); renderTabla();
     cerrarModal();
     toast('Registro guardado correctamente');
-  } catch(err) {
+  } catch (err) {
     toast(err.message || 'Error al guardar', 'error');
   } finally {
     btn.disabled = false; btn.textContent = 'Guardar registro';
