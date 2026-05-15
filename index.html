@@ -673,7 +673,7 @@ async function cargarObras() {
 
   try {
     const [resObras, resEntidad] = await Promise.all([
-      fetch(`${API}/api/obras`),
+      fetch(`${API}/api/obras?e=${SLUG}`),
       fetch(`${API}/api/entidad/${SLUG}`)
     ]);
 
