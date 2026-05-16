@@ -204,6 +204,29 @@ body{background:var(--bg);font-family:var(--sans);font-size:13px;color:var(--tex
 
 /* Hide/show */
 .hidden{display:none!important}
+
+/* ── EXEC BAR (resumen ejecutivo) ── */
+.exec-bar{background:var(--surface);border-bottom:1.5px solid var(--border);padding:0 24px;display:flex;align-items:center;min-height:48px;flex-wrap:wrap;gap:0}
+.eb-item{display:flex;flex-direction:column;padding:10px 20px 10px 0;min-width:110px}
+.eb-item:first-child{padding-left:0}
+.eb-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted2);margin-bottom:3px}
+.eb-value{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.eb-divider{width:1px;height:32px;background:var(--border);margin-right:20px;flex-shrink:0}
+.eb-risk-bajo{color:var(--green)!important}.eb-risk-medio{color:var(--amber)!important}.eb-risk-alto{color:var(--red)!important}
+
+/* ── PHASE TABS — IC + CI ── */
+.phase-tab.ic.active{color:var(--blue);border-bottom-color:var(--blue)}
+.phase-tab.ci.active{color:#7C3AED;border-bottom-color:#7C3AED}
+.pd-ic{background:var(--blue)}.pd-ci{background:#7C3AED}
+
+/* ── IC / CI section colors ── */
+.sn-ic{background:var(--blue-lt);color:var(--blue)}
+.sn-ci{background:#EDE9FE;color:#7C3AED}
+.sb-ic{background:var(--blue-lt);border:1.5px solid rgba(29,78,216,.15)}
+.sb-ci{background:#EDE9FE;border:1.5px solid rgba(124,58,237,.15)}
+.sb-ic .sb-lbl{color:var(--blue)}.sb-ci .sb-lbl{color:#7C3AED}
+.st-ic{background:var(--blue-lt);color:var(--blue)}
+.st-ci{background:#EDE9FE;color:#7C3AED}
 </style>
 </head>
 <body>
@@ -227,6 +250,29 @@ body{background:var(--bg);font-family:var(--sans);font-size:13px;color:var(--tex
   </div>
 </div>
 
+<!-- EXEC BAR -->
+<div class="exec-bar">
+  <div class="eb-item">
+    <div class="eb-label">Proyecto</div>
+    <div class="eb-value" id="eb-proyecto">—</div>
+  </div>
+  <div class="eb-divider"></div>
+  <div class="eb-item">
+    <div class="eb-label">Fase actual</div>
+    <div class="eb-value" id="eb-fase">Expediente Técnico</div>
+  </div>
+  <div class="eb-divider"></div>
+  <div class="eb-item">
+    <div class="eb-label">Nivel de riesgo</div>
+    <div class="eb-value" id="eb-riesgo">—</div>
+  </div>
+  <div class="eb-divider"></div>
+  <div class="eb-item">
+    <div class="eb-label">Alertas activas</div>
+    <div class="eb-value"><span id="eb-alertas-num">0</span></div>
+  </div>
+</div>
+
 <!-- PHASE TABS -->
 <div class="phase-bar">
   <div class="phase-tab et active" onclick="setPhase('et',this)">
@@ -234,10 +280,20 @@ body{background:var(--bg);font-family:var(--sans);font-size:13px;color:var(--tex
     Expediente Técnico
     <span class="phase-count">100% completado</span>
   </div>
+  <div class="phase-tab ic" onclick="setPhase('ic',this)">
+    <div class="phase-dot pd-ic"></div>
+    Inicio Contractual
+    <span class="phase-count" id="ic-status-tab">Pendiente</span>
+  </div>
   <div class="phase-tab ej" onclick="setPhase('ej',this)">
     <div class="phase-dot pd-ej"></div>
     Ejecución de Obra
     <span class="phase-count" id="ej-pct-tab">56.4% físico</span>
+  </div>
+  <div class="phase-tab ci" onclick="setPhase('ci',this)">
+    <div class="phase-dot pd-ci"></div>
+    Cierre de Inversión
+    <span class="phase-count" id="ci-status-tab">Pendiente</span>
   </div>
 </div>
 
@@ -317,7 +373,7 @@ body{background:var(--bg);font-family:var(--sans);font-size:13px;color:var(--tex
   <!-- MAIN: EJ display (se actualiza en tiempo real) -->
   <div class="main-panel" id="ej-display">
     <div class="sec-hdr">
-      <div class="sec-num sn-ej">II</div>
+      <div class="sec-num sn-ej">III</div>
       <div class="sec-title">Ejecución de Obra — Estado al <span id="d-fecha-corte">16/04/2026</span></div>
       <span class="sec-tag st-prog" id="d-estado-tag">⚡ En ejecución</span>
     </div>
@@ -481,6 +537,197 @@ body{background:var(--bg);font-family:var(--sans);font-size:13px;color:var(--tex
 </div><!-- /layout ej -->
 </div><!-- /view-ej -->
 
+<!-- ══════════════════════════════════════════ -->
+<!-- VISTA: INICIO CONTRACTUAL                   -->
+<!-- ══════════════════════════════════════════ -->
+<div id="view-ic" class="hidden" style="display:none">
+<div class="layout">
+
+  <!-- MAIN: IC display -->
+  <div class="main-panel" id="ic-display">
+    <div class="sec-hdr">
+      <div class="sec-num sn-ic">II</div>
+      <div class="sec-title">Inicio Contractual</div>
+      <span class="sec-tag st-ic" id="ic-status-tag">⏳ Pendiente</span>
+    </div>
+
+    <div class="ig4" id="ic-info-grid" style="margin-bottom:14px">
+      <div class="ic"><div class="ic-lbl">N° de contrato</div><div class="ic-val" id="ic-num-contrato">—</div></div>
+      <div class="ic"><div class="ic-lbl">Fecha suscripción</div><div class="ic-val mono" id="ic-fecha-suscripcion">—</div></div>
+      <div class="ic"><div class="ic-lbl">Contratista</div><div class="ic-val" id="ic-contratista">—</div></div>
+      <div class="ic"><div class="ic-lbl">Monto contratado</div><div class="ic-val mono" id="ic-monto-contratado">—</div></div>
+      <div class="ic"><div class="ic-lbl">Plazo (días cal.)</div><div class="ic-val" id="ic-plazo-dias">—</div></div>
+      <div class="ic"><div class="ic-lbl">Fecha inicio obra</div><div class="ic-val mono" id="ic-fecha-inicio">—</div></div>
+      <div class="ic"><div class="ic-lbl">Fecha vencimiento</div><div class="ic-val mono" id="ic-fecha-vencimiento">—</div></div>
+      <div class="ic"><div class="ic-lbl">Residente de obra</div><div class="ic-val" id="ic-residente">—</div></div>
+    </div>
+
+    <div class="ig2" style="margin-bottom:14px">
+      <div class="ic"><div class="ic-lbl">Supervisor / Inspector</div><div class="ic-val" id="ic-supervisor">—</div></div>
+      <div class="ic"><div class="ic-lbl">Entidad contratante</div><div class="ic-val" id="ic-entidad">—</div></div>
+    </div>
+
+    <div style="margin-bottom:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">Adelantos</div>
+    <div class="ig4" style="margin-bottom:14px">
+      <div class="ic"><div class="ic-lbl">Adelanto directo (%)</div><div class="ic-val" id="ic-ad-pct">—</div></div>
+      <div class="ic"><div class="ic-lbl">Adelanto directo (S/)</div><div class="ic-val mono" id="ic-ad-monto">—</div></div>
+      <div class="ic"><div class="ic-lbl">Adelanto materiales (%)</div><div class="ic-val" id="ic-am-pct">—</div></div>
+      <div class="ic"><div class="ic-lbl">Adelanto materiales (S/)</div><div class="ic-val mono" id="ic-am-monto">—</div></div>
+    </div>
+
+    <div class="sitbox sb-ic" id="ic-obs-box" style="display:none">
+      <div class="sb-lbl">Observaciones</div>
+      <div class="sb-text" id="ic-obs">—</div>
+    </div>
+
+    <div style="padding:20px;text-align:center;color:var(--muted);background:var(--surface2);border-radius:8px;margin-bottom:14px" id="ic-empty-state">
+      <p style="font-size:13px;margin-bottom:8px">📋 No hay información de Inicio Contractual registrada para este proyecto</p>
+      <p style="font-size:11px;color:var(--muted2)">Complete el formulario lateral para registrar los datos del contrato</p>
+    </div>
+  </div>
+
+  <!-- SIDE: IC editable form -->
+  <div class="side-panel" id="ic-side" style="display:flex;flex-direction:column">
+    <div style="flex:1;overflow-y:auto;padding-bottom:0">
+      <div class="rol-banner rb-editor" id="ic-rol-banner">✏️ Residente — registra los datos del contrato</div>
+
+      <div class="sp-title">Datos del contrato</div>
+      <div class="fg2" style="margin-bottom:8px">
+        <div class="field"><label>N° de contrato</label><input type="text" id="ic-f-num-contrato" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Fecha de suscripción</label><input type="text" id="ic-f-fecha-suscripcion" placeholder="DD/MM/YYYY" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Contratista</label><input type="text" id="ic-f-contratista" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Monto contratado (S/)</label><input type="number" id="ic-f-monto-contratado" min="0" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Plazo (días calendario)</label><input type="number" id="ic-f-plazo-dias" min="0" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Fecha inicio de obra</label><input type="text" id="ic-f-fecha-inicio" placeholder="DD/MM/YYYY" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Fecha vencimiento</label><input type="text" id="ic-f-fecha-vencimiento" placeholder="DD/MM/YYYY" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Residente de obra</label><input type="text" id="ic-f-residente" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Supervisor / Inspector</label><input type="text" id="ic-f-supervisor" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Entidad contratante</label><input type="text" id="ic-f-entidad" oninput="actualizarIC()"/></div>
+      </div>
+
+      <div class="sp-title">Adelantos</div>
+      <div class="fg2" style="margin-bottom:8px">
+        <div class="field"><label>Adelanto directo (%)</label><input type="number" id="ic-f-ad-pct" min="0" max="100" step="0.1" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Adelanto directo (S/)</label><input type="number" id="ic-f-ad-monto" min="0" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Adelanto materiales (%)</label><input type="number" id="ic-f-am-pct" min="0" max="100" step="0.1" oninput="actualizarIC()"/></div>
+        <div class="field"><label>Adelanto materiales (S/)</label><input type="number" id="ic-f-am-monto" min="0" oninput="actualizarIC()"/></div>
+      </div>
+
+      <div class="sp-title">Observaciones</div>
+      <div class="field">
+        <label>Notas y observaciones</label>
+        <textarea id="ic-f-obs" oninput="actualizarIC()"></textarea>
+      </div>
+    </div>
+    <div class="save-row">
+      <button class="btn-save" onclick="guardarIC()">💾 Guardar cambios</button>
+      <button class="btn-sec" onclick="limpiarIC()">Resetear</button>
+      <span class="saved-badge" id="ic-saved-ok">✓ Guardado</span>
+    </div>
+  </div>
+
+</div><!-- /layout ic -->
+</div><!-- /view-ic -->
+
+<!-- ══════════════════════════════════════════ -->
+<!-- VISTA: CIERRE DE INVERSIÓN                 -->
+<!-- ══════════════════════════════════════════ -->
+<div id="view-ci" class="hidden" style="display:none">
+<div class="layout">
+
+  <!-- MAIN: CI display -->
+  <div class="main-panel" id="ci-display">
+    <div class="sec-hdr">
+      <div class="sec-num sn-ci">IV</div>
+      <div class="sec-title">Cierre de Inversión</div>
+      <span class="sec-tag st-ci" id="ci-status-tag">⏳ Pendiente</span>
+    </div>
+
+    <div class="ig4" style="margin-bottom:14px">
+      <div class="ic"><div class="ic-lbl">Estado de cierre</div><div class="ic-val" id="ci-estado">—</div></div>
+      <div class="ic"><div class="ic-lbl">Fecha culminación</div><div class="ic-val mono" id="ci-fecha-culminacion">—</div></div>
+      <div class="ic"><div class="ic-lbl">Fecha recepción</div><div class="ic-val mono" id="ci-fecha-recepcion">—</div></div>
+      <div class="ic"><div class="ic-lbl">Acta N°</div><div class="ic-val" id="ci-acta">—</div></div>
+    </div>
+
+    <div style="margin-bottom:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">Liquidación</div>
+    <div class="ig4" style="margin-bottom:14px">
+      <div class="ic"><div class="ic-lbl">Estado liquidación</div><div class="ic-val" id="ci-liq-estado">—</div></div>
+      <div class="ic"><div class="ic-lbl">Monto liquidación (S/)</div><div class="ic-val mono" id="ci-liq-monto">—</div></div>
+      <div class="ic"><div class="ic-lbl">Penalidades (S/)</div><div class="ic-val mono" id="ci-penalidades">—</div></div>
+      <div class="ic"><div class="ic-lbl">Saldo liquidación (S/)</div><div class="ic-val mono" id="ci-saldo-liq">—</div></div>
+    </div>
+
+    <div class="ig2" style="margin-bottom:14px">
+      <div class="ic"><div class="ic-lbl">Fecha de liquidación</div><div class="ic-val mono" id="ci-fecha-liq">—</div></div>
+      <div class="ic"><div class="ic-lbl">Cierre en INVIERTE.PE</div><div class="ic-val mono" id="ci-fecha-invierte">—</div></div>
+    </div>
+
+    <div class="sitbox sb-ci" id="ci-obs-box" style="display:none">
+      <div class="sb-lbl">Observaciones de cierre</div>
+      <div class="sb-text" id="ci-obs">—</div>
+    </div>
+
+    <div style="padding:20px;text-align:center;color:var(--muted);background:var(--surface2);border-radius:8px;margin-bottom:14px" id="ci-empty-state">
+      <p style="font-size:13px;margin-bottom:8px">📋 No hay información de Cierre de Inversión registrada para este proyecto</p>
+      <p style="font-size:11px;color:var(--muted2)">Complete el formulario lateral para registrar el cierre del proyecto</p>
+    </div>
+  </div>
+
+  <!-- SIDE: CI editable form -->
+  <div class="side-panel" id="ci-side" style="display:flex;flex-direction:column">
+    <div style="flex:1;overflow-y:auto;padding-bottom:0">
+      <div class="rol-banner rb-editor" id="ci-rol-banner">✏️ Residente — registra el cierre de inversión</div>
+
+      <div class="sp-title">Estado y recepción</div>
+      <div class="field">
+        <label>Estado de cierre</label>
+        <select id="ci-f-estado" onchange="actualizarCI()">
+          <option value="">— Seleccionar —</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="en_proceso">En proceso</option>
+          <option value="cerrado">Cerrado</option>
+        </select>
+      </div>
+      <div class="fg2" style="margin-bottom:8px">
+        <div class="field"><label>Fecha culminación</label><input type="text" id="ci-f-fecha-culminacion" placeholder="DD/MM/YYYY" oninput="actualizarCI()"/></div>
+        <div class="field"><label>Fecha recepción</label><input type="text" id="ci-f-fecha-recepcion" placeholder="DD/MM/YYYY" oninput="actualizarCI()"/></div>
+        <div class="field"><label>N° de acta de recepción</label><input type="text" id="ci-f-acta" oninput="actualizarCI()"/></div>
+      </div>
+
+      <div class="sp-title">Liquidación</div>
+      <div class="field">
+        <label>Estado de liquidación</label>
+        <select id="ci-f-liq-estado" onchange="actualizarCI()">
+          <option value="">— Seleccionar —</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="en_proceso">En proceso</option>
+          <option value="aprobada">Aprobada</option>
+        </select>
+      </div>
+      <div class="fg2" style="margin-bottom:8px">
+        <div class="field"><label>Monto liquidación (S/)</label><input type="number" id="ci-f-liq-monto" min="0" oninput="actualizarCI()"/></div>
+        <div class="field"><label>Penalidades (S/)</label><input type="number" id="ci-f-penalidades" min="0" oninput="actualizarCI()"/></div>
+        <div class="field"><label>Fecha de liquidación</label><input type="text" id="ci-f-fecha-liq" placeholder="DD/MM/YYYY" oninput="actualizarCI()"/></div>
+        <div class="field"><label>Cierre en INVIERTE.PE</label><input type="text" id="ci-f-fecha-invierte" placeholder="DD/MM/YYYY" oninput="actualizarCI()"/></div>
+      </div>
+
+      <div class="sp-title">Observaciones</div>
+      <div class="field">
+        <label>Notas de cierre</label>
+        <textarea id="ci-f-obs" oninput="actualizarCI()"></textarea>
+      </div>
+    </div>
+    <div class="save-row">
+      <button class="btn-save" onclick="guardarCI()">💾 Guardar cambios</button>
+      <button class="btn-sec" onclick="limpiarCI()">Resetear</button>
+      <span class="saved-badge" id="ci-saved-ok">✓ Guardado</span>
+    </div>
+  </div>
+
+</div><!-- /layout ci -->
+</div><!-- /view-ci -->
+
 <script>
 // ══════════════════════════════════════════
 // ESTADO
@@ -545,14 +792,32 @@ const fmtM = v => { const n=Number(v); if(!v||isNaN(n)) return '—'; return n>=
 // ══════════════════════════════════════════
 // PHASE SWITCH
 // ══════════════════════════════════════════
+const PHASE_LABELS = {
+  et: 'Expediente Técnico',
+  ic: 'Inicio Contractual',
+  ej: 'Ejecución de Obra',
+  ci: 'Cierre de Inversión'
+};
+let currentPhase = 'et';
+
 function setPhase(p, el) {
+  currentPhase = p;
   document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('view-et').style.display = p==='et' ? 'grid' : 'none';
-  document.getElementById('view-et').classList.toggle('hidden', p!=='et');
-  const vejEl = document.getElementById('view-ej');
-  if(p==='ej') { vejEl.style.display='block'; vejEl.classList.remove('hidden'); }
-  else { vejEl.style.display='none'; vejEl.classList.add('hidden'); }
+
+  const etEl = document.getElementById('view-et');
+  etEl.style.display = p === 'et' ? 'grid' : 'none';
+  etEl.classList.toggle('hidden', p !== 'et');
+
+  ['ic', 'ej', 'ci'].forEach(v => {
+    const vEl = document.getElementById('view-' + v);
+    if (!vEl) return;
+    const show = v === p;
+    vEl.style.display = show ? 'block' : 'none';
+    vEl.classList.toggle('hidden', !show);
+  });
+
+  actualizarExecBar();
 }
 
 // ══════════════════════════════════════════
@@ -569,9 +834,18 @@ function cambiarRol(r) {
   document.getElementById('et-rol-banner').textContent = labels[rol].replace('edita los campos y ve el resultado en vivo','vista del ET completado');
   document.getElementById('et-rol-banner').className = clases[rol];
 
+  const icBanner = document.getElementById('ic-rol-banner');
+  if (icBanner) { icBanner.textContent = labels[rol].replace('edita los campos y ve el resultado en vivo','edita inicio contractual'); icBanner.className = clases[rol]; }
+  const ciBanner = document.getElementById('ci-rol-banner');
+  if (ciBanner) { ciBanner.textContent = labels[rol].replace('edita los campos y ve el resultado en vivo','edita cierre de inversión'); ciBanner.className = clases[rol]; }
+
   // Enable/disable form fields
   document.querySelectorAll('#ej-side input, #ej-side textarea').forEach(el => el.disabled = !puedeEditar);
   document.querySelectorAll('#ej-side .btn-save, #ej-side .btn-sec').forEach(el => el.disabled = !puedeEditar);
+  document.querySelectorAll('#ic-side input, #ic-side textarea, #ic-side select').forEach(el => el.disabled = !puedeEditar);
+  document.querySelectorAll('#ic-side .btn-save, #ic-side .btn-sec').forEach(el => el.disabled = !puedeEditar);
+  document.querySelectorAll('#ci-side input, #ci-side textarea, #ci-side select').forEach(el => el.disabled = !puedeEditar);
+  document.querySelectorAll('#ci-side .btn-save, #ci-side .btn-sec').forEach(el => el.disabled = !puedeEditar);
   const addMesBtn = document.querySelector('#ej-side button[onclick="addMes()"]');
   if(addMesBtn) addMesBtn.disabled = !puedeEditar;
   // Mostrar/ocultar botones de edición de subcomponentes
@@ -579,8 +853,242 @@ function cambiarRol(r) {
 }
 
 // ══════════════════════════════════════════
-// ACTUALIZAR EN TIEMPO REAL
+// EXEC BAR — resumen ejecutivo superior
 // ══════════════════════════════════════════
+function actualizarExecBar() {
+  const nombre = obraData?.nombre || '—';
+  const ebProyecto = document.getElementById('eb-proyecto');
+  if (ebProyecto) ebProyecto.textContent = nombre.length > 55 ? nombre.substring(0, 55) + '…' : nombre;
+
+  const ebFase = document.getElementById('eb-fase');
+  if (ebFase) ebFase.textContent = PHASE_LABELS[currentPhase] || '—';
+
+  const riesgos = obraData?.riesgos || [];
+  const alertasAlto  = riesgos.filter(r => r.nivel === 'ALTO').length;
+  const alertasMedio = riesgos.filter(r => r.nivel === 'MEDIO').length;
+
+  const ebRiesgo = document.getElementById('eb-riesgo');
+  if (ebRiesgo) {
+    if (alertasAlto > 0)        { ebRiesgo.textContent = '🔴 Alto';  ebRiesgo.className = 'eb-value eb-risk-alto'; }
+    else if (alertasMedio > 0)  { ebRiesgo.textContent = '🟡 Medio'; ebRiesgo.className = 'eb-value eb-risk-medio'; }
+    else if (riesgos.length > 0){ ebRiesgo.textContent = '🟢 Bajo';  ebRiesgo.className = 'eb-value eb-risk-bajo'; }
+    else                        { ebRiesgo.textContent = '—';        ebRiesgo.className = 'eb-value'; }
+  }
+
+  const ebAlertasNum = document.getElementById('eb-alertas-num');
+  if (ebAlertasNum) {
+    const total = alertasAlto + alertasMedio;
+    ebAlertasNum.textContent = total;
+    ebAlertasNum.style.color = alertasAlto > 0 ? 'var(--red)' : alertasMedio > 0 ? 'var(--amber)' : 'var(--green)';
+  }
+}
+
+// ══════════════════════════════════════════
+// INICIO CONTRACTUAL — actualizar display
+// ══════════════════════════════════════════
+function actualizarIC() {
+  document.getElementById('ic-num-contrato').textContent      = document.getElementById('ic-f-num-contrato').value || '—';
+  document.getElementById('ic-fecha-suscripcion').textContent = document.getElementById('ic-f-fecha-suscripcion').value || '—';
+  document.getElementById('ic-contratista').textContent       = document.getElementById('ic-f-contratista').value || '—';
+  const monto = parseFloat(document.getElementById('ic-f-monto-contratado').value);
+  document.getElementById('ic-monto-contratado').textContent  = isNaN(monto) ? '—' : fmtM(monto);
+  const plazo = document.getElementById('ic-f-plazo-dias').value;
+  document.getElementById('ic-plazo-dias').textContent        = plazo ? plazo + ' días' : '—';
+  document.getElementById('ic-fecha-inicio').textContent      = document.getElementById('ic-f-fecha-inicio').value || '—';
+  document.getElementById('ic-fecha-vencimiento').textContent = document.getElementById('ic-f-fecha-vencimiento').value || '—';
+  document.getElementById('ic-residente').textContent         = document.getElementById('ic-f-residente').value || '—';
+  document.getElementById('ic-supervisor').textContent        = document.getElementById('ic-f-supervisor').value || '—';
+  document.getElementById('ic-entidad').textContent           = document.getElementById('ic-f-entidad').value || '—';
+  const adPct   = document.getElementById('ic-f-ad-pct').value;
+  const adMonto = parseFloat(document.getElementById('ic-f-ad-monto').value);
+  const amPct   = document.getElementById('ic-f-am-pct').value;
+  const amMonto = parseFloat(document.getElementById('ic-f-am-monto').value);
+  document.getElementById('ic-ad-pct').textContent   = adPct ? adPct + '%' : '—';
+  document.getElementById('ic-ad-monto').textContent = isNaN(adMonto) ? '—' : fmtM(adMonto);
+  document.getElementById('ic-am-pct').textContent   = amPct ? amPct + '%' : '—';
+  document.getElementById('ic-am-monto').textContent = isNaN(amMonto) ? '—' : fmtM(amMonto);
+  const obs = document.getElementById('ic-f-obs').value;
+  const obsBox = document.getElementById('ic-obs-box');
+  if (obs) { obsBox.style.display = ''; document.getElementById('ic-obs').textContent = obs; }
+  else { obsBox.style.display = 'none'; }
+  const hasData = document.getElementById('ic-f-num-contrato').value || document.getElementById('ic-f-contratista').value;
+  document.getElementById('ic-empty-state').style.display = hasData ? 'none' : '';
+  // Tab label
+  const icTab = document.getElementById('ic-status-tab');
+  if (icTab) icTab.textContent = hasData ? 'Con datos' : 'Pendiente';
+}
+
+// ══════════════════════════════════════════
+// CIERRE DE INVERSIÓN — actualizar display
+// ══════════════════════════════════════════
+function actualizarCI() {
+  const estado = document.getElementById('ci-f-estado').value;
+  const estadoLabels = { pendiente:'⏳ Pendiente', en_proceso:'🔄 En proceso', cerrado:'✓ Cerrado' };
+  document.getElementById('ci-estado').textContent = estadoLabels[estado] || '—';
+  const statusTag = document.getElementById('ci-status-tag');
+  if (estado === 'cerrado')      { statusTag.className = 'sec-tag st-done'; statusTag.textContent = '✓ Cerrado'; }
+  else if (estado === 'en_proceso'){ statusTag.className = 'sec-tag st-prog'; statusTag.textContent = '🔄 En proceso'; }
+  else                            { statusTag.className = 'sec-tag st-ci';   statusTag.textContent = '⏳ Pendiente'; }
+  document.getElementById('ci-fecha-culminacion').textContent = document.getElementById('ci-f-fecha-culminacion').value || '—';
+  document.getElementById('ci-fecha-recepcion').textContent   = document.getElementById('ci-f-fecha-recepcion').value || '—';
+  document.getElementById('ci-acta').textContent              = document.getElementById('ci-f-acta').value || '—';
+  const liqEstado = document.getElementById('ci-f-liq-estado').value;
+  const liqLabels = { pendiente:'Pendiente', en_proceso:'En proceso', aprobada:'✓ Aprobada' };
+  document.getElementById('ci-liq-estado').textContent = liqLabels[liqEstado] || '—';
+  const liqMonto   = parseFloat(document.getElementById('ci-f-liq-monto').value);
+  const penalidades = parseFloat(document.getElementById('ci-f-penalidades').value);
+  document.getElementById('ci-liq-monto').textContent  = isNaN(liqMonto) ? '—' : fmtM(liqMonto);
+  document.getElementById('ci-penalidades').textContent = isNaN(penalidades) ? '—' : fmtM(penalidades);
+  const saldo = (!isNaN(liqMonto) && !isNaN(penalidades)) ? liqMonto - penalidades : null;
+  document.getElementById('ci-saldo-liq').textContent   = saldo !== null ? fmtM(saldo) : '—';
+  document.getElementById('ci-fecha-liq').textContent     = document.getElementById('ci-f-fecha-liq').value || '—';
+  document.getElementById('ci-fecha-invierte').textContent = document.getElementById('ci-f-fecha-invierte').value || '—';
+  const obs = document.getElementById('ci-f-obs').value;
+  const obsBox = document.getElementById('ci-obs-box');
+  if (obs) { obsBox.style.display = ''; document.getElementById('ci-obs').textContent = obs; }
+  else { obsBox.style.display = 'none'; }
+  const hasData = estado || document.getElementById('ci-f-fecha-culminacion').value;
+  document.getElementById('ci-empty-state').style.display = hasData ? 'none' : '';
+  const ciTab = document.getElementById('ci-status-tab');
+  if (ciTab) ciTab.textContent = estadoLabels[estado] || 'Pendiente';
+}
+
+// ══════════════════════════════════════════
+// GUARDAR IC
+// ══════════════════════════════════════════
+async function guardarIC() {
+  const btn = document.querySelector('#ic-side .btn-save');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const payload = {
+      numero_contrato:           document.getElementById('ic-f-num-contrato').value || null,
+      fecha_suscripcion:         document.getElementById('ic-f-fecha-suscripcion').value || null,
+      contratista:               document.getElementById('ic-f-contratista').value || null,
+      monto_contratado:          parseFloat(document.getElementById('ic-f-monto-contratado').value) || null,
+      plazo_dias:                parseInt(document.getElementById('ic-f-plazo-dias').value) || null,
+      fecha_inicio:              document.getElementById('ic-f-fecha-inicio').value || null,
+      fecha_vencimiento:         document.getElementById('ic-f-fecha-vencimiento').value || null,
+      residente:                 document.getElementById('ic-f-residente').value || null,
+      supervisor:                document.getElementById('ic-f-supervisor').value || null,
+      entidad:                   document.getElementById('ic-f-entidad').value || null,
+      adelanto_directo_pct:      parseFloat(document.getElementById('ic-f-ad-pct').value) || null,
+      adelanto_directo_monto:    parseFloat(document.getElementById('ic-f-ad-monto').value) || null,
+      adelanto_materiales_pct:   parseFloat(document.getElementById('ic-f-am-pct').value) || null,
+      adelanto_materiales_monto: parseFloat(document.getElementById('ic-f-am-monto').value) || null,
+      observaciones:             document.getElementById('ic-f-obs').value || null,
+    };
+    const res = await authedFetch(`${API}/api/obras/${cuiActual}/inicio-contractual`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar');
+    obraData.inicio_contractual = payload;
+    toast('✓ Inicio Contractual guardado');
+    const badge = document.getElementById('ic-saved-ok');
+    badge.classList.add('show');
+    setTimeout(() => badge.classList.remove('show'), 2500);
+  } catch (err) {
+    toast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Guardar cambios';
+  }
+}
+
+// ══════════════════════════════════════════
+// GUARDAR CI
+// ══════════════════════════════════════════
+async function guardarCI() {
+  const btn = document.querySelector('#ci-side .btn-save');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const payload = {
+      estado:                document.getElementById('ci-f-estado').value || null,
+      fecha_culminacion:     document.getElementById('ci-f-fecha-culminacion').value || null,
+      fecha_recepcion:       document.getElementById('ci-f-fecha-recepcion').value || null,
+      numero_acta:           document.getElementById('ci-f-acta').value || null,
+      liquidacion_estado:    document.getElementById('ci-f-liq-estado').value || null,
+      liquidacion_monto:     parseFloat(document.getElementById('ci-f-liq-monto').value) || null,
+      penalidades:           parseFloat(document.getElementById('ci-f-penalidades').value) || null,
+      fecha_liquidacion:     document.getElementById('ci-f-fecha-liq').value || null,
+      fecha_cierre_invierte: document.getElementById('ci-f-fecha-invierte').value || null,
+      observaciones:         document.getElementById('ci-f-obs').value || null,
+    };
+    const res = await authedFetch(`${API}/api/obras/${cuiActual}/cierre-inversion`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar');
+    obraData.cierre_inversion = payload;
+    toast('✓ Cierre de Inversión guardado');
+    const badge = document.getElementById('ci-saved-ok');
+    badge.classList.add('show');
+    setTimeout(() => badge.classList.remove('show'), 2500);
+  } catch (err) {
+    toast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Guardar cambios';
+  }
+}
+
+function limpiarIC() {
+  if (!confirm('¿Limpiar todos los campos de Inicio Contractual?')) return;
+  ['ic-f-num-contrato','ic-f-fecha-suscripcion','ic-f-contratista','ic-f-monto-contratado',
+   'ic-f-plazo-dias','ic-f-fecha-inicio','ic-f-fecha-vencimiento','ic-f-residente',
+   'ic-f-supervisor','ic-f-entidad','ic-f-ad-pct','ic-f-ad-monto','ic-f-am-pct',
+   'ic-f-am-monto','ic-f-obs'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  actualizarIC();
+  toast('✓ Campos de Inicio Contractual limpios');
+}
+
+function limpiarCI() {
+  if (!confirm('¿Limpiar todos los campos de Cierre de Inversión?')) return;
+  ['ci-f-estado','ci-f-fecha-culminacion','ci-f-fecha-recepcion','ci-f-acta',
+   'ci-f-liq-estado','ci-f-liq-monto','ci-f-penalidades','ci-f-fecha-liq',
+   'ci-f-fecha-invierte','ci-f-obs'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  actualizarCI();
+  toast('✓ Campos de Cierre de Inversión limpios');
+}
+
+function rellenarIC(ic) {
+  if (!ic) return;
+  document.getElementById('ic-f-num-contrato').value      = ic.numero_contrato || '';
+  document.getElementById('ic-f-fecha-suscripcion').value = ic.fecha_suscripcion || '';
+  document.getElementById('ic-f-contratista').value       = ic.contratista || '';
+  document.getElementById('ic-f-monto-contratado').value  = ic.monto_contratado || '';
+  document.getElementById('ic-f-plazo-dias').value        = ic.plazo_dias || '';
+  document.getElementById('ic-f-fecha-inicio').value      = ic.fecha_inicio || '';
+  document.getElementById('ic-f-fecha-vencimiento').value = ic.fecha_vencimiento || '';
+  document.getElementById('ic-f-residente').value         = ic.residente || '';
+  document.getElementById('ic-f-supervisor').value        = ic.supervisor || '';
+  document.getElementById('ic-f-entidad').value           = ic.entidad || '';
+  document.getElementById('ic-f-ad-pct').value            = ic.adelanto_directo_pct || '';
+  document.getElementById('ic-f-ad-monto').value          = ic.adelanto_directo_monto || '';
+  document.getElementById('ic-f-am-pct').value            = ic.adelanto_materiales_pct || '';
+  document.getElementById('ic-f-am-monto').value          = ic.adelanto_materiales_monto || '';
+  document.getElementById('ic-f-obs').value               = ic.observaciones || '';
+  actualizarIC();
+}
+
+function rellenarCI(ci) {
+  if (!ci) return;
+  document.getElementById('ci-f-estado').value            = ci.estado || '';
+  document.getElementById('ci-f-fecha-culminacion').value = ci.fecha_culminacion || '';
+  document.getElementById('ci-f-fecha-recepcion').value   = ci.fecha_recepcion || '';
+  document.getElementById('ci-f-acta').value              = ci.numero_acta || '';
+  document.getElementById('ci-f-liq-estado').value        = ci.liquidacion_estado || '';
+  document.getElementById('ci-f-liq-monto').value         = ci.liquidacion_monto || '';
+  document.getElementById('ci-f-penalidades').value       = ci.penalidades || '';
+  document.getElementById('ci-f-fecha-liq').value         = ci.fecha_liquidacion || '';
+  document.getElementById('ci-f-fecha-invierte').value    = ci.fecha_cierre_invierte || '';
+  document.getElementById('ci-f-obs').value               = ci.observaciones || '';
+  actualizarCI();
+}
+
+
 function actualizar() {
   const fis  = parseFloat(document.getElementById('f-fis').value)||0;
   const mfis = document.getElementById('f-mfis').value;
@@ -1250,6 +1758,7 @@ function rellenarFormulario() {
   // Actualizar display
   actualizar();
   renderCurvaS();
+  actualizarExecBar();
 }
 
 // ══════════════════════════════════════════
@@ -1384,9 +1893,14 @@ async function cargarDatosET(cui, token) {
     obraData.subcomponentes      = data.subcomponentes|| [];
     obraData.trabajos_pendientes = data.trabajos      || [];
     obraData.riesgos             = data.riesgos       || [];
+    obraData.inicio_contractual  = data.inicio_contractual || null;
+    obraData.cierre_inversion    = data.cierre_inversion   || null;
 
     rellenarFormulario();
     poblarSeccionET(data);
+    if (obraData.inicio_contractual) rellenarIC(obraData.inicio_contractual);
+    if (obraData.cierre_inversion)   rellenarCI(obraData.cierre_inversion);
+    actualizarExecBar();
   } catch (err) {
     console.warn('Sin datos ET para CUI:', cui, err.message);
   }
@@ -1482,6 +1996,7 @@ window.addEventListener('load', () => {
   cargarDatosObra();
   renderMeses();
   actualizar();
+  actualizarExecBar();
 });
 </script>
 <!-- CurvaSChart widget IIFE — cargado al final del body para evitar race conditions -->
