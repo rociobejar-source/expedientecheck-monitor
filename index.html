@@ -798,29 +798,38 @@ document.getElementById('btn-actualizar').addEventListener('click', cargarObras)
 
 // ── CLASIFICACIÓN DE ALERTA POR INVERSIÓN ────────────────────
 function calcularAlertaInversion(o) {
+  const cerrada  = o.estado_inversion === 'CERRADO';
+  const saldoPim = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
+  const saldoFin = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
+
+  // Si está CERRADA — solo alertas presupuestales
+  if (cerrada) {
+    if (saldoPim > 0) return 'rojo';    // A1: cerrada con saldo PIM
+    if (saldoFin > 0 && saldoPim <= 0) return 'amarillo'; // A2
+    return 'verde';
+  }
+
+  // ACTIVA — evaluar todas las alertas
   const fis        = o.avance_fisico     != null ? Number(o.avance_fisico)     : null;
   const fin        = o.avance_financiero != null ? Number(o.avance_financiero) : null;
   const hoy        = new Date();
   const fechaFin   = o.fecha_fin_ejecucion    ? new Date(o.fecha_fin_ejecucion)    : null;
   const fechaIni   = o.fecha_inicio_ejecucion ? new Date(o.fecha_inicio_ejecucion) : null;
-  const saldoPim   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
-  const saldoFin   = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
   const brecha     = (fis != null && fin != null) ? fin - fis : null;
   const mesesIni   = fechaIni ? (hoy - fechaIni) / (30 * 86400000) : null;
   const diasParaFin = fechaFin ? Math.ceil((fechaFin - hoy) / 86400000) : null;
 
   // ROJO
-  if (brecha !== null && brecha > 20)                                         return 'rojo';
-  if (o.f12b_dias_retraso > 0)                                                return 'rojo';
-  if (o.estado_inversion === 'CERRADO' && saldoPim > 0)                       return 'rojo';
-  if (fechaFin && fechaFin < hoy && (fis || 0) < 100)                        return 'rojo';
+  if (brecha !== null && brecha > 20)                                          return 'rojo';
+  if (o.f12b_dias_retraso > 0)                                                 return 'rojo';
+  if (fechaFin && fechaFin < hoy && (fis || 0) < 100)                         return 'rojo';
 
   // AMARILLO
-  if (brecha !== null && brecha > 10)                                         return 'amarillo';
-  if (saldoFin > 0 && saldoPim <= 0)                                          return 'amarillo';
+  if (brecha !== null && brecha > 10)                                          return 'amarillo';
+  if (saldoFin > 0 && saldoPim <= 0)                                           return 'amarillo';
   if ((Number(o.pim_2026)||0) > 0 && (Number(o.devengado_2026)||0) === 0 && hoy.getMonth() >= 6) return 'amarillo';
-  if (mesesIni !== null && mesesIni >= 2 && (fis || 0) < 5)                  return 'amarillo';
-  if (fis !== null && fin !== null && (fis - fin) > 20)                       return 'amarillo';
+  if (mesesIni !== null && mesesIni >= 2 && (fis || 0) < 5)                   return 'amarillo';
+  if (fis !== null && fin !== null && (fis - fin) > 20)                        return 'amarillo';
   if (diasParaFin !== null && diasParaFin >= 0 && diasParaFin <= 30 && (fis || 0) < 80) return 'amarillo';
 
   return 'verde';
@@ -912,30 +921,38 @@ function renderTabla() {
     const mesesIni    = fechaIni ? (hoy - fechaIni) / (30 * 86400000) : null;
 
     const badges = [];
+    const cerrada = o.estado_inversion === 'CERRADO';
 
-    // ROJOS
-    if (brecha !== null && Number(brecha) > 20)
-      badges.push(`<span class="badge rojo">Brecha >20%</span>`);
-    if (o.f12b_dias_retraso > 0)
-      badges.push(`<span class="badge rojo">F12B +${o.f12b_dias_retraso}d</span>`);
-    if (o.estado_inversion === 'CERRADO' && saldoPim > 0)
-      badges.push(`<span class="badge rojo">Cerrada c/saldo PIM</span>`);
-    if (fechaFin && fechaFin < hoy && (fis || 0) < 100)
-      badges.push(`<span class="badge rojo">Obra atrasada</span>`);
+    if (cerrada) {
+      // Inversión cerrada — solo alertas presupuestales
+      if (saldoPim > 0)
+        badges.push(`<span class="badge rojo">Cerrada c/saldo PIM</span>`);
+      if (saldoFinanc > 0 && saldoPim <= 0)
+        badges.push(`<span class="badge amarillo">Sin presup. culminar</span>`);
+    } else {
+      // Inversión activa — todas las alertas operacionales
+      // ROJOS
+      if (brecha !== null && Number(brecha) > 20)
+        badges.push(`<span class="badge rojo">Brecha >20%</span>`);
+      if (o.f12b_dias_retraso > 0)
+        badges.push(`<span class="badge rojo">F12B +${o.f12b_dias_retraso}d</span>`);
+      if (fechaFin && fechaFin < hoy && (fis || 0) < 100)
+        badges.push(`<span class="badge rojo">Obra atrasada</span>`);
 
-    // AMARILLOS
-    if (brecha !== null && Number(brecha) > 10 && Number(brecha) <= 20)
-      badges.push(`<span class="badge amarillo">Brecha ${brecha}%</span>`);
-    if (saldoFinanc > 0 && saldoPim <= 0)
-      badges.push(`<span class="badge amarillo">Sin presup. culminar</span>`);
-    if ((Number(o.pim_2026)||0) > 0 && (Number(o.devengado_2026)||0) === 0 && hoy.getMonth() >= 6)
-      badges.push(`<span class="badge amarillo">PIM sin ejecutar</span>`);
-    if (fechaFin && fechaFin >= hoy && diasParaFin <= 30 && (fis || 0) < 80)
-      badges.push(`<span class="badge amarillo">Vence en ${diasParaFin}d</span>`);
-    if (mesesIni !== null && mesesIni >= 2 && (fis || 0) < 5)
-      badges.push(`<span class="badge amarillo">Arranque lento</span>`);
-    if (fis !== null && fin !== null && (fis - fin) > 20)
-      badges.push(`<span class="badge amarillo">Brecha invertida</span>`);
+      // AMARILLOS
+      if (brecha !== null && Number(brecha) > 10 && Number(brecha) <= 20)
+        badges.push(`<span class="badge amarillo">Brecha ${brecha}%</span>`);
+      if (saldoFinanc > 0 && saldoPim <= 0)
+        badges.push(`<span class="badge amarillo">Sin presup. culminar</span>`);
+      if ((Number(o.pim_2026)||0) > 0 && (Number(o.devengado_2026)||0) === 0 && hoy.getMonth() >= 6)
+        badges.push(`<span class="badge amarillo">PIM sin ejecutar</span>`);
+      if (fechaFin && fechaFin >= hoy && diasParaFin <= 30 && (fis || 0) < 80)
+        badges.push(`<span class="badge amarillo">Vence en ${diasParaFin}d</span>`);
+      if (mesesIni !== null && mesesIni >= 2 && (fis || 0) < 5)
+        badges.push(`<span class="badge amarillo">Arranque lento</span>`);
+      if (fis !== null && fin !== null && (fis - fin) > 20)
+        badges.push(`<span class="badge amarillo">Brecha invertida</span>`);
+    }
 
     const todasAlertas = badges.length > 0
       ? `<div style="display:flex;flex-direction:column;gap:4px;">${badges.join('')}</div>`
