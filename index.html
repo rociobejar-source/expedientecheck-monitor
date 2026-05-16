@@ -795,12 +795,12 @@ function renderTabla() {
         <div class="obra-nombre">${o.nombre || 'Sin nombre'}</div>
         <div class="obra-entidad">${o.entidad || o.modalidad || ''}</div>
         <div>
-          <span class="cui-badge" onclick="window.open(`${ssiUrl}`,`_blank`)" title="Ver en SSI-MEF" style="cursor:pointer">${o.cui} ↗</span>
+          <span class="cui-badge" onclick="window.open('${ssiUrl}','_blank')" title="Ver en SSI-MEF" style="cursor:pointer">${o.cui} ↗</span>
           ${o.f12b_dias_retraso > 0 ? `<span class="f12b-badge late">F12B +${o.f12b_dias_retraso}d</span>` : ''}
         </div>
       </td>
       <td>
-        <span onclick="window.open(`${ssiUrl}`, `_blank`)"
+        <span onclick="window.open('${ssiUrl}','_blank')"
            style="font-family:var(--mono);font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px dashed var(--border);cursor:pointer;"
            title="Ver en SSI-MEF"
            onmouseover="this.style.color='var(--accent)';this.style.borderBottomColor='var(--accent)'"
