@@ -184,7 +184,20 @@
       overflow: hidden;
       overflow-x: auto;
     }
-    table { width: 100%; border-collapse: collapse; min-width: 900px; }
+    table { width: 100%; border-collapse: collapse; }
+    /* Hints de ancho de columna */
+    th.col-obra    { width: 20%; }
+    th.col-cui     { width: 6%; }
+    th.col-costo   { width: 8%; }
+    th.col-av-fis  { width: 10%; }
+    th.col-av-fin  { width: 10%; }
+    th.col-pim     { width: 7%; }
+    th.col-dev     { width: 7%; }
+    th.col-avpct   { width: 5%; }
+    th.col-alertas { width: 13%; }
+    th.col-estado  { width: 14%; }
+    /* Truncado con ellipsis en Obra/Entidad */
+    td.col-obra    { }
     thead th {
       background: var(--header);
       color: #9ca3af;
@@ -201,7 +214,7 @@
     tbody tr:hover { background: #f5f3ee; }
     tbody td { padding: 13px 14px; font-size: 13px; vertical-align: middle; }
 
-    .obra-nombre { font-weight: 600; color: var(--text); max-width: 220px; line-height: 1.3; }
+    .obra-nombre { font-weight: 600; color: var(--text); line-height: 1.3; }
     .obra-entidad { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
     .cui-badge {
       display: inline-block;
@@ -235,7 +248,29 @@
 
     .monto { font-family: var(--mono); font-size: 12px; color: var(--text); }
 
-    .progress-col { min-width: 130px; }
+    .progress-col { min-width: 100px; }
+
+    /* ── RESPONSIVE TABLE ── */
+    @media (max-width: 1024px) {
+      th.col-costo,  td.col-costo,
+      th.col-av-fin, td.col-av-fin { display: none; }
+    }
+    @media (max-width: 767px) {
+      th.col-cui,    td.col-cui,
+      th.col-av-fis, td.col-av-fis,
+      th.col-pim,    td.col-pim,
+      th.col-dev,    td.col-dev { display: none; }
+      tbody tr:not(.row-detail) { cursor: pointer; }
+    }
+    .row-detail { display: none; }
+    @media (max-width: 767px) {
+      .row-detail.open { display: table-row; }
+    }
+    .row-detail > td { padding: 10px 14px 16px; background: #f5f3ee; }
+    .row-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .row-detail-item { display: flex; flex-direction: column; gap: 4px; }
+    .row-detail-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+
     .prog-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
     .prog-row:last-child { margin-bottom: 0; }
     .prog-label { font-size: 10px; color: var(--muted); width: 14px; }
@@ -623,21 +658,20 @@
     <table>
       <thead>
         <tr>
-          <th>Obra / Entidad</th>
-          <th>CUI</th>
-          <th>Costo Proyecto (S/)</th>
-          <th>Av. Físico Acum.</th>
-          <th>Av. Financiero Acum.</th>
-          <th>PIM (S/)</th>
-          <th>Dev. (S/)</th>
-          <th>Av. %</th>
-          <th>Alertas</th>
-          <th>Estado</th>
-          <th></th>
+          <th class="col-obra">Obra / Entidad</th>
+          <th class="col-cui">CUI</th>
+          <th class="col-costo">Costo Proyecto (S/)</th>
+          <th class="col-av-fis">Av. Físico Acum.</th>
+          <th class="col-av-fin">Av. Financiero Acum.</th>
+          <th class="col-pim">PIM (S/)</th>
+          <th class="col-dev">Dev. (S/)</th>
+          <th class="col-avpct">Av. %</th>
+          <th class="col-alertas">Alertas</th>
+          <th class="col-estado">Estado</th>
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="11" style="padding:20px"><div class="skeleton"></div></td></tr>
+        <tr><td colspan="10" style="padding:20px"><div class="skeleton"></div></td></tr>
       </tbody>
     </table>
   </div>
@@ -786,7 +820,7 @@ async function cargarObras() {
 
   } catch (err) {
     document.getElementById('tbody').innerHTML =
-      `<tr><td colspan="11"><div class="empty-state">Error al cargar datos. Verifica tu conexión.</div></td></tr>`;
+      `<tr><td colspan="10"><div class="empty-state">Error al cargar datos. Verifica tu conexión.</div></td></tr>`;
     console.error('Error cargando datos:', err);
   } finally {
     btn.disabled   = false;
@@ -897,7 +931,7 @@ function renderTabla() {
     : obras.filter(o => calcularAlertaInversion(o) === filtro);
 
   if (!filtradas.length) {
-    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state">Sin obras para mostrar</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">Sin obras para mostrar</div></td></tr>`;
     return;
   }
 
@@ -965,8 +999,8 @@ function renderTabla() {
       : `<span class="estado-dot verde">Sin alertas</span>`;
 
     return `
-    <tr>
-      <td>
+    <tr data-obra-id="${o.id}">
+      <td class="col-obra">
         <div class="obra-nombre">${o.nombre || 'Sin nombre'}</div>
         <div class="obra-entidad">${o.entidad || o.modalidad || ''}</div>
         <div>
@@ -974,7 +1008,7 @@ function renderTabla() {
           ${o.f12b_dias_retraso > 0 ? `<span class="f12b-badge late">F12B +${o.f12b_dias_retraso}d</span>` : ''}
         </div>
       </td>
-      <td>
+      <td class="col-cui">
         <span onclick="window.open('https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${o.cui}&tipo=2','_blank')"
            style="font-family:var(--mono);font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px dashed var(--border);cursor:pointer;"
            title="Ver en SSI-MEF"
@@ -982,30 +1016,42 @@ function renderTabla() {
            onmouseout="this.style.color='var(--muted)';this.style.borderBottomColor='var(--border)'"
         >${o.cui}</span>
       </td>
-      <td class="monto">${fmtM(o.costo_proyecto)}</td>
-      <td class="progress-col">
+      <td class="col-costo monto">${fmtM(o.costo_proyecto)}</td>
+      <td class="col-av-fis progress-col">
         <div class="prog-row">
           <span class="prog-label">F</span>
           <div class="prog-bar"><div class="prog-fill fisico" style="width:${fis || 0}%"></div></div>
           <span class="prog-pct">${fmtPct(fis)}</span>
         </div>
       </td>
-      <td class="progress-col">
+      <td class="col-av-fin progress-col">
         <div class="prog-row">
           <span class="prog-label">$</span>
           <div class="prog-bar"><div class="prog-fill financiero" style="width:${Math.min(fin || 0, 100)}%"></div></div>
           <span class="prog-pct">${fmtPct(fin)}</span>
         </div>
       </td>
-      <td class="monto">${fmtM(o.pim_2026)}</td>
-      <td class="monto">${fmtM(o.devengado_2026)}</td>
-      <td><span class="pct-grande">${avPct != null ? avPct.toFixed(1) + '%' : fmtPct(fin)}</span></td>
-      <td>${todasAlertas}</td>
-      <td>${estadoDot}</td>
-      <td>
-        <button class="btn-detalle" data-id="${o.id}">
-          ${puedeEditar ? 'Ver / Editar' : 'Ver detalle'}
-        </button>
+      <td class="col-pim monto">${fmtM(o.pim_2026)}</td>
+      <td class="col-dev monto">${fmtM(o.devengado_2026)}</td>
+      <td class="col-avpct"><span class="pct-grande">${avPct != null ? avPct.toFixed(1) + '%' : fmtPct(fin)}</span></td>
+      <td class="col-alertas">${todasAlertas}</td>
+      <td class="col-estado">
+        ${estadoDot}
+        <div style="margin-top:7px">
+          <button class="btn-detalle" data-id="${o.id}">${puedeEditar ? 'Ver / Editar' : 'Ver detalle'}</button>
+        </div>
+      </td>
+    </tr>
+    <tr class="row-detail" data-detail-for="${o.id}">
+      <td colspan="4">
+        <div class="row-detail-grid">
+          <div class="row-detail-item"><span class="row-detail-label">CUI</span><span style="font-family:var(--mono);font-size:12px;color:var(--muted)">${o.cui}</span></div>
+          <div class="row-detail-item"><span class="row-detail-label">Costo Proyecto</span><span class="monto">${fmtM(o.costo_proyecto)}</span></div>
+          <div class="row-detail-item"><span class="row-detail-label">Av. Físico</span><div class="prog-row" style="margin:0"><div class="prog-bar"><div class="prog-fill fisico" style="width:${fis || 0}%"></div></div><span class="prog-pct">${fmtPct(fis)}</span></div></div>
+          <div class="row-detail-item"><span class="row-detail-label">Av. Financiero</span><div class="prog-row" style="margin:0"><div class="prog-bar"><div class="prog-fill financiero" style="width:${Math.min(fin || 0, 100)}%"></div></div><span class="prog-pct">${fmtPct(fin)}</span></div></div>
+          <div class="row-detail-item"><span class="row-detail-label">PIM</span><span class="monto">${fmtM(o.pim_2026)}</span></div>
+          <div class="row-detail-item"><span class="row-detail-label">Dev.</span><span class="monto">${fmtM(o.devengado_2026)}</span></div>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -1020,6 +1066,18 @@ function renderTabla() {
         window.location.href = `fichatecnicaCUI.html?cui=${obra.cui}`;
       } else {
         window.location.href = `login.html?cui=${obra.cui}`;
+      }
+    });
+  });
+
+  // Expandir fila de detalle en móvil
+  tbody.querySelectorAll('tr[data-obra-id]').forEach(tr => {
+    tr.addEventListener('click', e => {
+      if (window.innerWidth >= 768) return;
+      if (e.target.closest('button, a, [onclick]')) return;
+      const detail = tr.nextElementSibling;
+      if (detail && detail.classList.contains('row-detail')) {
+        detail.classList.toggle('open');
       }
     });
   });
