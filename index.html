@@ -185,7 +185,7 @@
       overflow-x: auto;
     }
     table { width: 100%; border-collapse: collapse; }
-    /* Hints de ancho de columna */
+    /* Hints de ancho de columna (table-layout: auto los usa como punto de partida) */
     th.col-obra    { width: 20%; }
     th.col-cui     { width: 6%; }
     th.col-costo   { width: 8%; }
@@ -195,8 +195,9 @@
     th.col-dev     { width: 7%; }
     th.col-avpct   { width: 5%; }
     th.col-alertas { width: 13%; }
-    th.col-estado  { width: 14%; }
-    /* Truncado con ellipsis en Obra/Entidad */
+    th.col-estado  { width: 10%; }
+
+    /* Habilitar truncado con ellipsis en la celda de Obra/Entidad */
     td.col-obra    { }
     thead th {
       background: var(--header);
@@ -244,32 +245,55 @@
       font-weight: 600;
     }
     .f12b-badge.ok   { background: var(--verde-lt); color: var(--verde); }
-    .f12b-badge.late { background: var(--rojo-lt);  color: var(--rojo); }
+    .f12b-badge.warn  { background: var(--amarillo-lt); color: var(--amarillo); }
+    .f12b-badge.late  { background: var(--rojo-lt);  color: var(--rojo); }
 
     .monto { font-family: var(--mono); font-size: 12px; color: var(--text); }
 
     .progress-col { min-width: 100px; }
 
-    /* ── RESPONSIVE TABLE ── */
+    /* ── RESPONSIVE TABLE COLUMNS ── */
+    /* Tablet (768–1024px): ocultar Costo Proyecto y Av. Financiero Acum. */
     @media (max-width: 1024px) {
       th.col-costo,  td.col-costo,
       th.col-av-fin, td.col-av-fin { display: none; }
     }
+    /* Móvil (<768px): mostrar solo Obra/Entidad, Av.%, Alertas, Estado */
     @media (max-width: 767px) {
       th.col-cui,    td.col-cui,
       th.col-av-fis, td.col-av-fis,
       th.col-pim,    td.col-pim,
-      th.col-dev,    td.col-dev { display: none; }
+      th.col-dev,    td.col-dev,
+
       tbody tr:not(.row-detail) { cursor: pointer; }
     }
+
+    /* Fila de detalle expandible (solo visible en móvil) */
     .row-detail { display: none; }
     @media (max-width: 767px) {
       .row-detail.open { display: table-row; }
     }
-    .row-detail > td { padding: 10px 14px 16px; background: #f5f3ee; }
-    .row-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-    .row-detail-item { display: flex; flex-direction: column; gap: 4px; }
-    .row-detail-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+    .row-detail > td {
+      padding: 10px 14px 16px;
+      background: #f5f3ee;
+    }
+    .row-detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+    }
+    .row-detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .row-detail-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+    }
 
     .prog-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
     .prog-row:last-child { margin-bottom: 0; }
@@ -668,6 +692,7 @@
           <th class="col-avpct">Av. %</th>
           <th class="col-alertas">Alertas</th>
           <th class="col-estado">Estado</th>
+
         </tr>
       </thead>
       <tbody id="tbody">
@@ -830,6 +855,29 @@ async function cargarObras() {
 
 document.getElementById('btn-actualizar').addEventListener('click', cargarObras);
 
+// ── EVALUACIÓN F12B ─────────────────────────────────────────
+function evaluarF12B(ultFecDeclaEstim) {
+  if (!ultFecDeclaEstim) return { color: 'rojo', label: 'Sin F12B' };
+
+  const hoy = new Date();
+  const ultimaAct = new Date(ultFecDeclaEstim);
+  const diasDesde = Math.floor((hoy - ultimaAct) / 86400000);
+  const etiqueta = `F12B +${diasDesde}d`;
+
+  // Último día del mes anterior
+  const cierreMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+  // Día 10 del mes actual = vencimiento del plazo
+  const plazoVencimiento = new Date(hoy.getFullYear(), hoy.getMonth(), 10);
+
+  if (ultimaAct >= cierreMesAnterior) {
+    return { color: 'verde', label: etiqueta };   // ✅ Actualizó este período
+  }
+  if (hoy <= plazoVencimiento) {
+    return { color: 'amarillo', label: etiqueta }; // ⚠️ Aún dentro del plazo
+  }
+  return { color: 'rojo', label: etiqueta };        // 🔴 Venció sin actualizar
+}
+
 // ── CLASIFICACIÓN DE ALERTA POR INVERSIÓN ────────────────────
 function calcularAlertaInversion(o) {
   const cerrada  = o.estado_inversion === 'CERRADO';
@@ -855,10 +903,12 @@ function calcularAlertaInversion(o) {
 
   // ROJO
   if (brecha !== null && brecha > 20)                                          return 'rojo';
-  if (o.f12b_dias_retraso > 0)                                                 return 'rojo';
+  // F12B — usar evaluarF12B con ult_fec_decla_estim
+  if (evaluarF12B(o.ult_fec_decla_estim).color === 'rojo')                     return 'rojo';
   if (fechaFin && fechaFin < hoy && (fis || 0) < 100)                         return 'rojo';
 
   // AMARILLO
+  if (evaluarF12B(o.ult_fec_decla_estim).color === 'amarillo')                 return 'amarillo';
   if (brecha !== null && brecha > 10)                                          return 'amarillo';
   if (saldoFin > 0 && saldoPim <= 0)                                           return 'amarillo';
   if ((Number(o.pim_2026)||0) > 0 && (Number(o.devengado_2026)||0) === 0 && hoy.getMonth() >= 6) return 'amarillo';
@@ -968,8 +1018,10 @@ function renderTabla() {
       // ROJOS
       if (brecha !== null && Number(brecha) > 20)
         badges.push(`<span class="badge rojo">Brecha >20%</span>`);
-      if (o.f12b_dias_retraso > 0)
-        badges.push(`<span class="badge rojo">F12B +${o.f12b_dias_retraso}d</span>`);
+      // F12B — usar evaluarF12B con ult_fec_decla_estim
+      const _f12b = evaluarF12B(o.ult_fec_decla_estim);
+      if (_f12b.color !== 'verde')
+        badges.push(`<span class="badge ${_f12b.color}">${_f12b.label}</span>`);
       if (fechaFin && fechaFin < hoy && (fis || 0) < 100)
         badges.push(`<span class="badge rojo">Obra atrasada</span>`);
 
@@ -1005,7 +1057,7 @@ function renderTabla() {
         <div class="obra-entidad">${o.entidad || o.modalidad || ''}</div>
         <div>
           <span class="cui-badge" onclick="window.open('https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${o.cui}&tipo=2','_blank')" title="Ver en SSI-MEF" style="cursor:pointer">${o.cui} ↗</span>
-          ${o.f12b_dias_retraso > 0 ? `<span class="f12b-badge late">F12B +${o.f12b_dias_retraso}d</span>` : ''}
+          ${(() => { const r = evaluarF12B(o.ult_fec_decla_estim); return r.color !== 'verde' ? `<span class="f12b-badge ${r.color === 'rojo' ? 'late' : r.color === 'amarillo' ? 'warn' : 'ok'}">${r.label}</span>` : ''; })()}
         </div>
       </td>
       <td class="col-cui">
@@ -1045,12 +1097,41 @@ function renderTabla() {
     <tr class="row-detail" data-detail-for="${o.id}">
       <td colspan="4">
         <div class="row-detail-grid">
-          <div class="row-detail-item"><span class="row-detail-label">CUI</span><span style="font-family:var(--mono);font-size:12px;color:var(--muted)">${o.cui}</span></div>
-          <div class="row-detail-item"><span class="row-detail-label">Costo Proyecto</span><span class="monto">${fmtM(o.costo_proyecto)}</span></div>
-          <div class="row-detail-item"><span class="row-detail-label">Av. Físico</span><div class="prog-row" style="margin:0"><div class="prog-bar"><div class="prog-fill fisico" style="width:${fis || 0}%"></div></div><span class="prog-pct">${fmtPct(fis)}</span></div></div>
-          <div class="row-detail-item"><span class="row-detail-label">Av. Financiero</span><div class="prog-row" style="margin:0"><div class="prog-bar"><div class="prog-fill financiero" style="width:${Math.min(fin || 0, 100)}%"></div></div><span class="prog-pct">${fmtPct(fin)}</span></div></div>
-          <div class="row-detail-item"><span class="row-detail-label">PIM</span><span class="monto">${fmtM(o.pim_2026)}</span></div>
-          <div class="row-detail-item"><span class="row-detail-label">Dev.</span><span class="monto">${fmtM(o.devengado_2026)}</span></div>
+          <div class="row-detail-item">
+            <span class="row-detail-label">CUI</span>
+            <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">${o.cui}</span>
+          </div>
+          <div class="row-detail-item">
+            <span class="row-detail-label">Costo Proyecto</span>
+            <span class="monto">${fmtM(o.costo_proyecto)}</span>
+          </div>
+          <div class="row-detail-item">
+            <span class="row-detail-label">Av. Físico Acum.</span>
+            <div class="prog-row" style="margin:0">
+              <div class="prog-bar"><div class="prog-fill fisico" style="width:${fis || 0}%"></div></div>
+              <span class="prog-pct">${fmtPct(fis)}</span>
+            </div>
+          </div>
+          <div class="row-detail-item">
+            <span class="row-detail-label">Av. Financiero Acum.</span>
+            <div class="prog-row" style="margin:0">
+              <div class="prog-bar"><div class="prog-fill financiero" style="width:${Math.min(fin || 0, 100)}%"></div></div>
+              <span class="prog-pct">${fmtPct(fin)}</span>
+            </div>
+          </div>
+          <div class="row-detail-item">
+            <span class="row-detail-label">PIM (S/)</span>
+            <span class="monto">${fmtM(o.pim_2026)}</span>
+          </div>
+          <div class="row-detail-item">
+            <span class="row-detail-label">Dev. (S/)</span>
+            <span class="monto">${fmtM(o.devengado_2026)}</span>
+          </div>
+          <div class="row-detail-item" style="grid-column:1/-1;margin-top:4px">
+            <button class="btn-detalle" data-id="${o.id}" style="align-self:flex-start">
+              ${puedeEditar ? 'Ver / Editar' : 'Ver detalle'}
+            </button>
+          </div>
         </div>
       </td>
     </tr>`;
@@ -1070,14 +1151,15 @@ function renderTabla() {
     });
   });
 
-  // Expandir fila de detalle en móvil
+  // Expandir fila de detalle al tocar en móvil
   tbody.querySelectorAll('tr[data-obra-id]').forEach(tr => {
     tr.addEventListener('click', e => {
       if (window.innerWidth >= 768) return;
       if (e.target.closest('button, a, [onclick]')) return;
       const detail = tr.nextElementSibling;
       if (detail && detail.classList.contains('row-detail')) {
-        detail.classList.toggle('open');
+        const isOpen = detail.classList.toggle('open');
+        tr.classList.toggle('expanded', isOpen);
       }
     });
   });
