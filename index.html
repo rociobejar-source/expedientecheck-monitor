@@ -857,7 +857,14 @@ document.getElementById('btn-actualizar').addEventListener('click', cargarObras)
 
 // ── EVALUACIÓN F12B ─────────────────────────────────────────
 function evaluarF12B(ultFecDeclaEstim) {
-  if (!ultFecDeclaEstim) return { color: 'rojo', label: 'Sin F12B' };
+  if (!ultFecDeclaEstim) {
+    const hoy = new Date();
+    const cierreMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+    const plazoVencimiento  = new Date(hoy.getFullYear(), hoy.getMonth(), 10);
+    const diasDesde = Math.floor((hoy - cierreMesAnterior) / 86400000);
+    if (hoy <= plazoVencimiento) return { color: 'amarillo', label: 'F12B por actualizar' };
+    return { color: 'rojo', label: `F12B +${diasDesde}d` };
+  }
 
   const hoy = new Date();
   const ultimaAct = new Date(ultFecDeclaEstim);
