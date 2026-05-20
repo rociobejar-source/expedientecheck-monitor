@@ -568,8 +568,14 @@
       font-weight: 500;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
+<!-- FALLBACK BANNER (oculto por defecto, visible solo cuando Railway no responde) -->
+<div id="banner-fallback" style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:0;padding:10px 24px;font-size:13px;color:#856404;text-align:center;">
+  ⚠️ Mostrando datos en modo respaldo. La información está actualizada al último sincronizado.
+</div>
 
 <!-- HEADER -->
 <header>
@@ -760,6 +766,12 @@
 const API  = 'https://api.expedientecheck.com';
 const SLUG = new URLSearchParams(window.location.search).get('e') || 'tacna';
 
+// ── SUPABASE (fallback cuando Railway no responde) ────────────
+const _supabase = supabase.createClient(
+  'https://xrbyvwliffdvfdmshaix.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyYnl2d2xpZmZkdmZkbXNoYWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTMwMzAsImV4cCI6MjA5MTQyOTAzMH0.IaoSfrjeD2C_cZbQI7BWRjKZo8iyPLrD5q6qfqHewd8'
+);
+
 // ── ESTADO ───────────────────────────────────────────────────
 let obras       = [];
 let kpisEntidad = null;
@@ -810,21 +822,196 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 });
 
 // ── CARGAR DATOS ─────────────────────────────────────────────
-async function cargarObras() {
+
+// ── Fallback: cargarEntidad vía Supabase ──────────────────────
+async function cargarEntidad(slug) {
+  const { data: entidad, error: e0 } = await _supabase
+    .from('entidades')
+    .select('id, nombre, slug, region')
+    .eq('slug', slug)
+    .eq('activa', true)
+    .maybeSingle();
+  if (e0) throw new Error(e0.message);
+  if (!entidad) throw new Error('Entidad no encontrada');
+
+  const [
+    { data: ssiRows,      error: e1 },
+    { data: infobrasRows, error: e2 },
+  ] = await Promise.all([
+    _supabase
+      .from('ssi_inversiones')
+      .select('codigo_unico, pim_ano_vigente, devengado_2026, costo_actualizado, dev_acumulado, porc_avance_fis')
+      .eq('entidad_id', entidad.id)
+      .gt('pim_ano_vigente', 0),
+    _supabase
+      .from('infobras_obras')
+      .select('cui, nombre_obra, estado, avance_fisico, avance_financiero, monto')
+      .eq('entidad_id', entidad.id),
+  ]);
+  if (e1) throw new Error(e1.message);
+  if (e2) throw new Error(e2.message);
+
+  const infobrasSet = new Set((infobrasRows || []).map(o => o.cui));
+  const ssi         = (ssiRows || []).filter(s => infobrasSet.has(s.codigo_unico));
+
+  const pimTotal     = ssi.reduce((acc, s) => acc + (Number(s.pim_ano_vigente)   || 0), 0);
+  const devTotal     = ssi.reduce((acc, s) => acc + (Number(s.devengado_2026)    || 0), 0);
+  const costoTotal   = ssi.reduce((acc, s) => acc + (Number(s.costo_actualizado) || 0), 0);
+  const devAcumTotal = ssi.reduce((acc, s) => acc + (Number(s.dev_acumulado)     || 0), 0);
+  const avance2026Pct = pimTotal > 0 ? (devTotal / pimTotal) * 100 : 0;
+
+  const cuisConPIM = new Set(ssi.map(s => s.codigo_unico));
+  const porAlerta  = { verde: 0, amarillo: 0, rojo: 0 };
+  const ssiMap2    = {};
+  ssi.forEach(s => { ssiMap2[s.codigo_unico] = s; });
+
+  (infobrasRows || []).filter(o => cuisConPIM.has(o.cui)).forEach(o => {
+    const s = ssiMap2[o.cui] || {};
+    const fisico = o.avance_fisico != null ? Number(o.avance_fisico)
+      : (s.porc_avance_fis != null ? Number(s.porc_avance_fis) : null);
+    const financiero_calc = o.avance_financiero != null && Number(o.avance_financiero) > 0
+      ? Number(o.avance_financiero)
+      : (Number(s.dev_acumulado) > 0 && Number(s.costo_actualizado) > 0
+        ? (Number(s.dev_acumulado) / Number(s.costo_actualizado)) * 100
+        : null);
+    let alerta = 'verde';
+    if (fisico != null && financiero_calc != null) {
+      const brecha = financiero_calc - fisico;
+      alerta = brecha > 20 ? 'rojo' : brecha > 5 ? 'amarillo' : 'verde';
+    }
+    if (porAlerta[alerta] !== undefined) porAlerta[alerta]++;
+  });
+
+  return {
+    entidad: { id: entidad.id, nombre: entidad.nombre, slug: entidad.slug, region: entidad.region },
+    ssi: {
+      total:           ssi.length,
+      pim_total:       pimTotal,
+      devengado_total: devTotal,
+      costo_total:     costoTotal,
+      dev_acum_total:  devAcumTotal,
+      avance_2026_pct: Math.round(avance2026Pct * 10) / 10,
+    },
+    infobras: { total: (infobrasRows || []).length, por_alerta: porAlerta },
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// ── Fallback: cargarObras vía Supabase ────────────────────────
+async function cargarObras(slug) {
+  const { data: entidad, error: e0 } = await _supabase
+    .from('entidades')
+    .select('id')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (e0) throw new Error(e0.message);
+  if (!entidad) throw new Error('Entidad no encontrada');
+
+  const [
+    { data: infobras, error: e1 },
+    { data: ssi,      error: e2 },
+  ] = await Promise.all([
+    _supabase
+      .from('infobras_obras')
+      .select('id, cui, nombre_obra, estado, entidad_nombre, contratista, monto, avance_fisico, avance_financiero, alerta, situacion, punto_critico, modalidad_ejecucion, fecha_actualizacion, ubicacion, distrito')
+      .eq('entidad_id', entidad.id),
+    _supabase
+      .from('ssi_inversiones')
+      .select('codigo_unico, pim_ano_vigente, devengado_2026, costo_actualizado, dev_acumulado, porc_avance_fis, modalidad_ejecucion, entidad, estado_inversion, fecha_inicio_ejecucion, fecha_fin_ejecucion, ult_fec_decla_estim')
+      .eq('entidad_id', entidad.id),
+  ]);
+  if (e1) throw new Error(e1.message);
+  if (e2) throw new Error(e2.message);
+
+  const ssiMap     = {};
+  (ssi || []).forEach(s => { ssiMap[s.codigo_unico] = s; });
+  const cuisConPIM = new Set((ssi || []).filter(s => s.pim_ano_vigente > 0).map(s => s.codigo_unico));
+
+  const obras = (infobras || []).filter(o => cuisConPIM.has(o.cui)).map(o => {
+    const s          = ssiMap[o.cui] || {};
+    const pim        = s.pim_ano_vigente  != null ? Number(s.pim_ano_vigente)  : 0;
+    const dev        = s.devengado_2026   != null ? Number(s.devengado_2026)   : 0;
+    const costo      = s.costo_actualizado != null && Number(s.costo_actualizado) > 0
+      ? Number(s.costo_actualizado) : (o.monto != null ? Number(o.monto) : null);
+    const fisico     = o.avance_fisico != null ? Number(o.avance_fisico)
+      : (s.porc_avance_fis != null ? Number(s.porc_avance_fis) : null);
+    const financiero = o.avance_financiero != null && Number(o.avance_financiero) > 0
+      ? Number(o.avance_financiero)
+      : (Number(s.dev_acumulado) > 0 && Number(s.costo_actualizado) > 0
+        ? (Number(s.dev_acumulado) / Number(s.costo_actualizado)) * 100
+        : null);
+    let alerta = 'verde';
+    if (fisico != null && financiero != null) {
+      const brecha = financiero - fisico;
+      alerta = brecha > 20 ? 'rojo' : brecha > 5 ? 'amarillo' : 'verde';
+    }
+    const avance_2026_pct = pim > 0 ? (dev / pim) * 100 : null;
+    return {
+      id: o.id, cui: o.cui,
+      nombre:                 o.nombre_obra,
+      estado:                 o.estado,
+      entidad:                o.entidad_nombre || s.entidad,
+      municipalidad:          o.distrito || '',
+      contratista:            o.contratista,
+      costo_proyecto:         costo,
+      avance_fisico:          fisico,
+      avance_financiero:      financiero,
+      alerta,
+      situacion:              o.situacion,
+      punto_critico:          o.punto_critico,
+      pim_2026:               pim,
+      devengado_2026:         dev,
+      dev_acumulado:          s.dev_acumulado || 0,
+      avance_2026_pct,
+      modalidad:              o.modalidad_ejecucion || s.modalidad_ejecucion,
+      fecha_actualizacion:    o.fecha_actualizacion,
+      estado_inversion:       s.estado_inversion       || null,
+      costo_actualizado:      s.costo_actualizado != null ? Number(s.costo_actualizado) : null,
+      fecha_inicio_ejecucion: s.fecha_inicio_ejecucion || null,
+      fecha_fin_ejecucion:    s.fecha_fin_ejecucion    || null,
+      ult_fec_decla_estim:    s.ult_fec_decla_estim    || null,
+    };
+  });
+
+  obras.sort((a, b) => (b.pim_2026 || 0) - (a.pim_2026 || 0));
+  return { obras };
+}
+
+async function cargarDatos() {
   const btn  = document.getElementById('btn-actualizar');
   const icon = document.getElementById('icon-refresh');
   btn.disabled     = true;
   icon.className   = 'spin';
   icon.textContent = '↻';
 
-  try {
-    const [resObras, resEntidad] = await Promise.all([
-      fetch(`${API}/api/obras?e=${SLUG}`),
-      fetch(`${API}/api/entidad/${SLUG}`)
-    ]);
+  let dataObras, dataEntidad;
+  let usoFallback = false;
 
-    const dataObras   = await resObras.json();
-    const dataEntidad = await resEntidad.json();
+  try {
+    // Intentar Railway con timeout de 5 segundos
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), 5000);
+    try {
+      const [resObras, resEntidad] = await Promise.all([
+        fetch(`${API}/api/obras?e=${SLUG}`,   { signal: controller.signal }),
+        fetch(`${API}/api/entidad/${SLUG}`,   { signal: controller.signal }),
+      ]);
+      clearTimeout(timeoutId);
+      dataObras   = await resObras.json();
+      dataEntidad = await resEntidad.json();
+      document.getElementById('banner-fallback').style.display = 'none';
+    } catch (_fetchErr) {
+      clearTimeout(timeoutId);
+      // Fallback a Supabase
+      usoFallback = true;
+      const [sbObras, sbEntidad] = await Promise.all([
+        cargarObras(SLUG),
+        cargarEntidad(SLUG),
+      ]);
+      dataObras   = sbObras;
+      dataEntidad = sbEntidad;
+      document.getElementById('banner-fallback').style.display = 'block';
+    }
 
     obras       = dataObras.obras || [];
     kpisEntidad = dataEntidad;
@@ -853,7 +1040,7 @@ async function cargarObras() {
   }
 }
 
-document.getElementById('btn-actualizar').addEventListener('click', cargarObras);
+document.getElementById('btn-actualizar').addEventListener('click', cargarDatos);
 
 // ── EVALUACIÓN F12B ─────────────────────────────────────────
 function evaluarF12B(ultFecDeclaEstim) {
@@ -1317,8 +1504,8 @@ document.getElementById('btn-save').addEventListener('click', async () => {
 });
 
 // ── INICIO ───────────────────────────────────────────────────
-cargarObras();
-setInterval(cargarObras, 5 * 60 * 1000);
+cargarDatos();
+setInterval(cargarDatos, 5 * 60 * 1000);
 </script>
 </body>
 </html>

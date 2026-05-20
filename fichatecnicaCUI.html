@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- CurvaSChart widget CSS (compilado con `npm run build:widget` en curva-s-app/) -->
 <link rel="stylesheet" href="dist/curva-s/curva-s-widget.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // Protección de autenticación - ejecutar antes de cargar el contenido
   (function() {
@@ -732,6 +733,10 @@ body{background:var(--bg);font-family:var(--sans);font-size:13px;color:var(--tex
 // ══════════════════════════════════════════
 // ESTADO
 // ══════════════════════════════════════════
+const _supabase = supabase.createClient(
+  'https://xrbyvwliffdvfdmshaix.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyYnl2d2xpZmZkdmZkbXNoYWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTMwMzAsImV4cCI6MjA5MTQyOTAzMH0.IaoSfrjeD2C_cZbQI7BWRjKZo8iyPLrD5q6qfqHewd8'
+);
 let rol = 'residente';
 
 function cerrarSesion() {
@@ -1525,13 +1530,27 @@ async function cargarDatosObra() {
   document.querySelector('.tb-cui').textContent = `CUI ${cuiActual}`;
 
   try {
-    // Usar el backend (no Supabase directo — elimina la clave hardcodeada)
+    // Usar el backend con fallback a Supabase si Railway no responde
     const token = localStorage.getItem('expediente_token');
-    const res = await fetch(`${API}/api/ssi/${cuiActual}`, {
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
-
-    const json = (res.ok) ? await res.json() : null;
+    let json = null;
+    try {
+      const controller = new AbortController();
+      const timeoutId  = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`${API}/api/ssi/${cuiActual}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      json = res.ok ? await res.json() : null;
+    } catch (_fetchErr) {
+      // Fallback a Supabase
+      const { data: ssiRow } = await _supabase
+        .from('ssi_inversiones')
+        .select('nombre_inversion, costo_actualizado, pim_ano_vigente, dev_acumulado, devengado_2026')
+        .eq('codigo_unico', cuiActual)
+        .maybeSingle();
+      json = { ssi: ssiRow };
+    }
     const ssi = json?.ssi || null;
 
     // Obtener el id de la obra desde localStorage (guardado al navegar desde index.html)
