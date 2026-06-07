@@ -567,6 +567,161 @@
       margin-bottom: 20px;
       font-weight: 500;
     }
+
+    /* ── POPUP DETALLE OBRA ── */
+    #popup-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(15,15,15,0.55);
+      backdrop-filter: blur(3px);
+      z-index: 9999;
+    }
+    #popup-overlay.open { display: block; }
+    #popup-box {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: calc(100% - 40px);
+      max-width: 640px;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10000;
+    }
+    #popup-overlay.open #popup-box { display: block; }
+    @keyframes popupIn { from { opacity:0; } to { opacity:1; } }
+    .pp-header {
+      background: #0B2341;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .pp-title { color: #F4EFE7; font-size: 13px; font-weight: 600; margin: 0 0 4px; line-height: 1.4; }
+    .pp-cui   { color: #D4A62A; font-size: 11px; font-weight: 500; letter-spacing: 0.04em; margin: 0; }
+    .pp-close {
+      background: rgba(255,255,255,0.12); border: none; border-radius: 6px;
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #F4EFE7; font-size: 18px; flex-shrink: 0; line-height: 1;
+      transition: background 0.15s;
+    }
+    .pp-close:hover { background: rgba(255,255,255,0.22); }
+    .pp-alerts {
+      padding: 10px 1.25rem;
+      background: #f5f3ee;
+      border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .pp-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600;
+      padding: 3px 9px; border-radius: 20px;
+    }
+    .pp-pill.rojo    { background: var(--rojo-lt);    color: var(--rojo);    border: 1px solid #f5c6c2; }
+    .pp-pill.amarillo{ background: var(--amarillo-lt); color: var(--amarillo); border: 1px solid #f5dfa2; }
+    .pp-pill.azul    { background: #e0e7ff;            color: #3730a3;        border: 1px solid #c7d2fe; }
+    .pp-body { padding: 1rem 1.25rem; }
+    .pp-section {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted);
+      margin: 0 0 10px; display: flex; align-items: center; gap: 6px;
+    }
+    .pp-fin-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px; margin-bottom: 10px;
+    }
+    .pp-fc {
+      background: #f5f3ee; border-radius: 8px; padding: 10px 12px;
+    }
+    .pp-fc-label { font-size: 11px; color: var(--muted); margin: 0 0 3px; line-height: 1.3; }
+    .pp-fc-val   { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; font-family: var(--mono); }
+    .pp-fc-val.gold  { color: #b7860b; }
+    .pp-fc-val.green { color: var(--verde); }
+    .pp-fc-val.red   { color: var(--rojo); }
+    .pp-bars {
+      background: #f5f3ee; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+    }
+    .pp-bar-row { margin-bottom: 6px; }
+    .pp-bar-top { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .pp-bar-top strong { color: var(--text); font-weight: 600; }
+    .pp-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .pp-fill  { height: 100%; border-radius: 3px; }
+    .pp-legend { display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: var(--muted); }
+    .pp-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .pp-pending { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .pp-divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+    .pp-estado-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600; padding: 3px 10px;
+      border-radius: 20px; margin-bottom: 10px;
+    }
+    .pp-estado-badge.proceso  { background: var(--amarillo-lt); color: var(--amarillo); border: 1px solid #f5dfa2; }
+    .pp-estado-badge.contratado { background: var(--verde-lt); color: var(--verde); border: 1px solid #b8dfc9; }
+    .pp-estado-badge.desierto { background: #f5f3ee; color: var(--muted); border: 1px solid var(--border); }
+    .pp-ctr-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .pp-ctr-row:last-child { border-bottom: none; }
+    .pp-ctr-key { color: var(--muted); }
+    .pp-ctr-val { font-weight: 600; color: var(--text); text-align: right; }
+    .pp-ctr-val.warn { color: var(--amarillo); }
+    .pp-ctr-val.na   { color: var(--muted); font-weight: 400; font-style: italic; }
+    /* Cronograma */
+    .pp-tl-head {
+      display: grid; grid-template-columns: 1fr 88px 88px 72px;
+      gap: 6px; padding: 4px 0; margin-bottom: 2px;
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+    .pp-tl-row {
+      display: grid; grid-template-columns: 1fr 88px 88px 72px;
+      gap: 6px; align-items: center;
+      padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 11px;
+    }
+    .pp-tl-row:last-child { border-bottom: none; }
+    .pp-tl-nombre { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pp-tl-fecha  { color: var(--text); font-weight: 600; font-size: 11px; font-family: var(--mono); }
+    .pp-tl-fecha.vacia { color: var(--muted); font-style: italic; font-weight: 400; }
+    .pp-tl-status { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; text-align: center; white-space: nowrap; }
+    .pp-tl-status.ok       { background: var(--verde-lt); color: var(--verde); }
+    .pp-tl-status.vencida  { background: var(--rojo-lt);  color: var(--rojo); }
+    .pp-tl-status.pendiente{ background: #f0ede6; color: var(--muted); }
+    .pp-tl-row.es-vencida .pp-tl-nombre { color: var(--rojo); }
+    /* Footer */
+    .pp-footer {
+      padding: 10px 1.25rem;
+      background: #f5f3ee;
+      border-top: 1px solid var(--border);
+      display: flex; gap: 8px; justify-content: flex-end;
+    }
+    .pp-btn-sec {
+      font-size: 13px; font-weight: 500; padding: 7px 14px;
+      border-radius: 7px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted);
+      cursor: pointer; display: flex; align-items: center; gap: 5px;
+      transition: all 0.15s; text-decoration: none;
+    }
+    .pp-btn-sec:hover { border-color: var(--text); color: var(--text); }
+    .pp-btn-pri {
+      font-size: 13px; font-weight: 600; padding: 7px 16px;
+      border-radius: 7px; border: none;
+      background: #0B2341; color: #F4EFE7;
+      cursor: pointer; display: flex; align-items: center; gap: 5px;
+      transition: opacity 0.15s; text-decoration: none;
+    }
+    .pp-btn-pri:hover { opacity: 0.85; }
+    /* Sin SEACE */
+    .pp-no-seace {
+      background: #f5f3ee; border-radius: 8px; padding: 12px 14px;
+      font-size: 12px; color: var(--muted); text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -748,6 +903,35 @@
       <button class="btn-cancel" id="btn-cancel">Cancelar</button>
       <button class="btn-save"   id="btn-save">Guardar registro</button>
     </div>
+  </div>
+</div>
+
+<!-- POPUP DETALLE OBRA -->
+<div id="popup-overlay">
+  <div id="popup-box">
+    <div class="pp-header">
+      <div style="flex:1;min-width:0">
+        <p class="pp-title" id="pp-title"></p>
+        <p class="pp-cui"   id="pp-cui"></p>
+      </div>
+      <button class="pp-close" id="pp-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="pp-alerts" id="pp-alerts"></div>
+    <div class="pp-body">
+      <p class="pp-section">📊 Situación financiera</p>
+      <div class="pp-fin-grid" id="pp-fin"></div>
+      <div class="pp-bars"    id="pp-bars"></div>
+      <hr class="pp-divider">
+      <p class="pp-section">📄 Información contractual</p>
+      <div id="pp-ctr"></div>
+      <hr class="pp-divider" id="pp-tl-divider" style="display:none">
+      <p class="pp-section" id="pp-tl-label" style="display:none">📅 Cronograma del proceso</p>
+      <div class="pp-tl-head" id="pp-tl-head" style="display:none">
+        <span>Etapa</span><span>Fecha máx</span><span>Fecha real</span><span>Estado</span>
+      </div>
+      <div id="pp-timeline"></div>
+    </div>
+    <div class="pp-footer" id="pp-footer"></div>
   </div>
 </div>
 
@@ -1161,13 +1345,7 @@ function renderTabla() {
     btn.addEventListener('click', () => {
       const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
       if (!obra) return;
-      const token = localStorage.getItem('expediente_token');
-      if (token) {
-        localStorage.setItem('obra_actual', JSON.stringify(obra));
-        window.location.href = `fichatecnicaCUI.html?cui=${obra.cui}`;
-      } else {
-        window.location.href = `login.html?cui=${obra.cui}`;
-      }
+      abrirPopupDetalle(obra);
     });
   });
 
@@ -1327,6 +1505,251 @@ document.getElementById('btn-save').addEventListener('click', async () => {
   } finally {
     btn.disabled = false; btn.textContent = 'Guardar registro';
   }
+});
+
+// ── POPUP DETALLE OBRA ───────────────────────────────────────
+
+function fmtMpp(n) {
+  const v = Number(n);
+  if (!n || isNaN(v)) return '—';
+  if (Math.abs(v) >= 1e6) return 'S/ ' + (v / 1e6).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1e3) return 'S/ ' + Math.round(v / 1e3) + 'K';
+  return 'S/ ' + Math.round(v).toLocaleString('es-PE');
+}
+
+function parseFechaStr(str) {
+  if (!str) return null;
+  const m = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+function fmtFechaStr(str) {
+  if (!str) return null;
+  const d = parseFechaStr(str);
+  if (!d) return str;
+  return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+async function abrirPopupDetalle(obra) {
+  const overlay = document.getElementById('popup-overlay');
+  overlay.classList.add('open');
+  overlay.scrollTop = 0;
+
+  // Datos básicos desde obra (ya en memoria)
+  document.getElementById('pp-title').textContent = obra.nombre || 'Sin nombre';
+  document.getElementById('pp-cui').textContent =
+    `CUI ${obra.cui} · ${SLUG.charAt(0).toUpperCase() + SLUG.slice(1)} · ${obra.estado_inversion || '—'}`;
+
+  // Alertas MEF (desde calcularAlertaInversion ya existente)
+  const alertasMef = [];
+  const cerrada = obra.estado_inversion === 'CERRADO';
+  const saldoPim  = (Number(obra.pim_2026) || 0) - (Number(obra.devengado_2026) || 0);
+  const saldoFin  = (Number(obra.costo_actualizado) || 0) - (Number(obra.dev_acumulado) || 0);
+  const hoy = new Date();
+  const fechaFin  = obra.fecha_fin_ejecucion    ? new Date(obra.fecha_fin_ejecucion)    : null;
+  const fechaIni  = obra.fecha_inicio_ejecucion ? new Date(obra.fecha_inicio_ejecucion) : null;
+  const fis = obra.avance_fisico     != null ? Number(obra.avance_fisico)     : null;
+  const fin = obra.avance_financiero != null ? Number(obra.avance_financiero) : null;
+  const brecha = (fis != null && fin != null) ? fin - fis : null;
+  const diasParaFin = fechaFin ? Math.ceil((fechaFin - hoy) / 86400000) : null;
+  const mesesIni = fechaIni ? (hoy - fechaIni) / (30 * 86400000) : null;
+
+  if (cerrada) {
+    if (saldoPim > 0) alertasMef.push({ t: 'rojo', txt: 'Cerrada c/saldo PIM' });
+    if (saldoFin > 0 && saldoPim <= 0) alertasMef.push({ t: 'amarillo', txt: 'Sin presup. culminar' });
+  } else {
+    if (brecha !== null && brecha > 20) alertasMef.push({ t: 'rojo', txt: 'Brecha >20%' });
+    const _f12b = evaluarF12B(obra.ult_fec_decla_estim, obra.estado_inversion);
+    if (_f12b.color !== 'verde' && _f12b.label) alertasMef.push({ t: _f12b.color, txt: _f12b.label });
+    if (fechaFin && fechaFin < hoy && (fis || 0) < 100) alertasMef.push({ t: 'rojo', txt: 'Obra atrasada' });
+    if (brecha !== null && brecha > 10 && brecha <= 20) alertasMef.push({ t: 'amarillo', txt: `Brecha ${brecha.toFixed(1)}%` });
+    if (saldoFin > 0 && saldoPim <= 0) alertasMef.push({ t: 'amarillo', txt: 'Sin presup. culminar' });
+    if ((Number(obra.pim_2026) || 0) > 0 && (Number(obra.devengado_2026) || 0) === 0 && hoy.getMonth() >= 6)
+      alertasMef.push({ t: 'amarillo', txt: 'PIM sin ejecutar' });
+    if (diasParaFin !== null && diasParaFin >= 0 && diasParaFin <= 30 && (fis || 0) < 80)
+      alertasMef.push({ t: 'amarillo', txt: `Vence en ${diasParaFin}d` });
+    if (mesesIni !== null && mesesIni >= 2 && (fis || 0) === 0 && (fin || 0) === 0)
+      alertasMef.push({ t: 'amarillo', txt: 'Arranque lento' });
+    if (fis !== null && fin !== null && (fis - fin) > 20)
+      alertasMef.push({ t: 'amarillo', txt: 'Brecha invertida' });
+  }
+
+  // Renderizar alertas MEF (SEACE se agrega después)
+  function renderAlerts(seaceAlerts = []) {
+    const all = [...alertasMef, ...seaceAlerts];
+    document.getElementById('pp-alerts').innerHTML = all.length
+      ? all.map(a => `<span class="pp-pill ${a.t}">● ${a.txt}</span>`).join('')
+      : '<span style="font-size:11px;color:var(--muted)">Sin alertas detectadas</span>';
+  }
+  renderAlerts();
+
+  // Sección financiera
+  const pim     = Number(obra.pim_2026)        || 0;
+  const cert    = Number(obra.certificado_ano_vigente) || 0;
+  const comp    = Number(obra.comprometido_ano_vigente) || 0;
+  const devAno  = Number(obra.devengado_2026)   || 0;
+  const devAcum = Number(obra.dev_acumulado)    || 0;
+  const costo   = Number(obra.costo_actualizado) || 0;
+  const pendEjec  = pim - devAno;
+  const pendCierre = costo - devAcum;
+
+  document.getElementById('pp-fin').innerHTML = [
+    { label: 'Costo de inversión', val: fmtMpp(costo), cls: '' },
+    { label: 'PIM año vigente',    val: fmtMpp(pim),   cls: 'gold' },
+    { label: 'Certificado',        val: fmtMpp(cert),  cls: '' },
+    { label: 'Comprometido',       val: fmtMpp(comp),  cls: '' },
+    { label: 'Devengado año',      val: fmtMpp(devAno),cls: 'green' },
+    { label: 'Dev. acumulado',     val: fmtMpp(devAcum),cls:'green' },
+  ].map(c => `<div class="pp-fc"><p class="pp-fc-label">${c.label}</p><p class="pp-fc-val ${c.cls}">${c.val}</p></div>`).join('');
+
+  const pctCert = pim > 0 ? Math.min(100, (cert / pim) * 100) : 0;
+  const pctDev  = pim > 0 ? Math.min(100, (devAno / pim) * 100) : 0;
+
+  document.getElementById('pp-bars').innerHTML = `
+    <div class="pp-bar-row">
+      <div class="pp-bar-top"><span>Certificado / PIM</span><strong>${pctCert.toFixed(0)}%</strong></div>
+      <div class="pp-track"><div class="pp-fill" style="width:${pctCert}%;background:#b7860b"></div></div>
+    </div>
+    <div class="pp-bar-row" style="margin-top:7px">
+      <div class="pp-bar-top"><span>Devengado / PIM</span><strong>${pctDev.toFixed(1)}%</strong></div>
+      <div class="pp-track"><div class="pp-fill" style="width:${Math.max(pctDev, 0.3)}%;background:var(--verde)"></div></div>
+    </div>
+    <div class="pp-legend">
+      <span><span class="pp-dot" style="background:#b7860b"></span> Certificado</span>
+      <span><span class="pp-dot" style="background:var(--verde)"></span> Devengado</span>
+    </div>
+    <div class="pp-pending">
+      <div class="pp-fc" style="padding:8px 10px">
+        <p class="pp-fc-label">Pendiente ejecutar 2026</p>
+        <p class="pp-fc-val red" style="font-size:14px">${fmtMpp(pendEjec > 0 ? pendEjec : 0)}</p>
+      </div>
+      <div class="pp-fc" style="padding:8px 10px">
+        <p class="pp-fc-label">Pendiente para cierre</p>
+        <p class="pp-fc-val red" style="font-size:14px">${fmtMpp(pendCierre > 0 ? pendCierre : 0)}</p>
+      </div>
+    </div>`;
+
+  // Sección contractual — consultar backend
+  document.getElementById('pp-ctr').innerHTML =
+    '<p style="font-size:12px;color:var(--muted);padding:8px 0">Cargando datos contractuales...</p>';
+
+  try {
+    const resp = await fetch(`${API}/api/seace/${obra.cui}?e=${SLUG}`);
+    const { contrato: c, alertas: alertasSEACE } = await resp.json();
+
+    // Alertas SEACE → pills azules
+    const seacePills = [];
+    if (Array.isArray(alertasSEACE) && alertasSEACE.length) {
+      const tipos = {};
+      alertasSEACE.forEach(a => { tipos[a.tipo_alerta] = (tipos[a.tipo_alerta] || 0) + 1; });
+      if (tipos.ETAPA_VENCIDA_SIN_DOC)
+        seacePills.push({ t: 'azul', txt: `Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}` });
+      if (tipos.PLAZO_MENOR_NORMATIVA)
+        seacePills.push({ t: 'azul', txt: 'Plazo menor normativa' });
+      if (tipos.ADJUDICADO_SIN_CONTRATO)
+        seacePills.push({ t: 'azul', txt: 'Adjudicado sin contrato' });
+      if (tipos.DOBLE_DESIERTO)
+        seacePills.push({ t: 'azul', txt: 'Doble desierto' });
+      if (tipos.PERDIDA_BUENA_PRO)
+        seacePills.push({ t: 'azul', txt: 'Pérdida de buena pro' });
+    }
+    renderAlerts(seacePills);
+
+    if (!c || !c.estado_proceso) {
+      document.getElementById('pp-ctr').innerHTML =
+        '<div class="pp-no-seace">Sin proceso de contratación registrado en SEACE para este CUI</div>';
+    } else {
+      const estadoMap = {
+        EN_PROCESO: { label: 'En proceso — convocatoria activa', cls: 'proceso' },
+        ADJUDICADO: { label: 'Adjudicado',  cls: 'contratado' },
+        CONTRATADO: { label: 'Contratado',  cls: 'contratado' },
+        DESIERTO:   { label: 'Desierto',    cls: 'desierto' },
+        CANCELADO:  { label: 'Cancelado',   cls: 'desierto' },
+      };
+      const est = estadoMap[c.estado_proceso] || { label: c.estado_proceso, cls: 'desierto' };
+
+      const ctrRows = [
+        { k: 'Nomenclatura',         v: c.nomenclatura || '—' },
+        { k: 'Tipo de proceso',      v: c.tipo_proceso  || '—' },
+        { k: 'Valor referencial',    v: fmtMpp(c.valor_referencial_num) },
+        { k: 'N° de vueltas',        v: c.nro_vueltas,  warn: c.nro_vueltas > 2 },
+        { k: 'Pérdida de buena pro', v: c.hubo_perdida_buena_pro ? 'Sí ⚠' : 'No', warn: c.hubo_perdida_buena_pro },
+        { k: 'Contratista',          v: c.contratista_ganador || null },
+        { k: 'Monto adjudicado',     v: c.monto_adjudicado ? fmtMpp(c.monto_adjudicado) : null },
+      ];
+
+      document.getElementById('pp-ctr').innerHTML =
+        `<span class="pp-estado-badge ${est.cls}">● ${est.label}</span>` +
+        '<div>' +
+        ctrRows.map(r => {
+          const val = r.v != null ? r.v : '—';
+          const cls = r.v == null ? 'na' : r.warn ? 'warn' : '';
+          return `<div class="pp-ctr-row"><span class="pp-ctr-key">${r.k}</span><span class="pp-ctr-val ${cls}">${val}</span></div>`;
+        }).join('') +
+        '</div>';
+
+      // Cronograma
+      const cronograma = Array.isArray(c.cronograma) ? c.cronograma : [];
+      const documentos  = Array.isArray(c.documentos)  ? c.documentos  : [];
+
+      if (cronograma.length) {
+        document.getElementById('pp-tl-divider').style.display = '';
+        document.getElementById('pp-tl-label').style.display   = '';
+        document.getElementById('pp-tl-head').style.display    = '';
+
+        // Mapa etapa → fecha publicacion real
+        const docMap = {};
+        documentos.forEach(doc => {
+          const key = (doc.etapa || '').toLowerCase().replace(/\s+/g, '').substring(0, 22);
+          if (!docMap[key]) docMap[key] = doc.fecha_publicacion;
+        });
+
+        document.getElementById('pp-timeline').innerHTML = cronograma.map(etapa => {
+          const fechaMax = fmtFechaStr(etapa.fecha_fin);
+          const maxDate  = parseFechaStr(etapa.fecha_fin);
+          const key      = (etapa.etapa || '').toLowerCase().replace(/\s+/g, '').substring(0, 22);
+          const realStr  = docMap[key] || null;
+          const fechaReal = realStr ? fmtFechaStr(realStr) : null;
+          const vencida  = !realStr && maxDate && maxDate < hoy;
+          const cls      = realStr ? 'ok' : vencida ? 'vencida' : 'pendiente';
+          const txt      = realStr ? 'Publicado' : vencida ? 'Sin doc' : 'Pendiente';
+          return `<div class="pp-tl-row ${vencida ? 'es-vencida' : ''}">
+            <span class="pp-tl-nombre" title="${etapa.etapa}">${etapa.etapa}</span>
+            <span class="pp-tl-fecha">${fechaMax || '—'}</span>
+            <span class="pp-tl-fecha ${fechaReal ? '' : 'vacia'}">${fechaReal || '—'}</span>
+            <span class="pp-tl-status ${cls}">${txt}</span>
+          </div>`;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    document.getElementById('pp-ctr').innerHTML =
+      '<div class="pp-no-seace">Error al cargar datos contractuales</div>';
+    console.error('Error popup SEACE:', err);
+  }
+
+  // Footer — Vista institucional
+  const fichaUrl = `https://${SLUG}.expedientecheck.com/?cui=${obra.cui}`;
+  document.getElementById('pp-footer').innerHTML = `
+    <a class="pp-btn-pri" href="${fichaUrl}" target="_blank">
+      🏛 Vista institucional
+    </a>`;
+}
+
+function cerrarPopup() {
+  document.getElementById('popup-overlay').classList.remove('open');
+  // Limpiar cronograma para próxima apertura
+  document.getElementById('pp-tl-divider').style.display = 'none';
+  document.getElementById('pp-tl-label').style.display   = 'none';
+  document.getElementById('pp-tl-head').style.display    = 'none';
+  document.getElementById('pp-timeline').innerHTML = '';
+}
+
+document.getElementById('pp-close').addEventListener('click', cerrarPopup);
+document.getElementById('popup-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('popup-overlay')) cerrarPopup();
 });
 
 // ── INICIO ───────────────────────────────────────────────────
