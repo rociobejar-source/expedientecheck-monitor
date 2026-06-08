@@ -367,6 +367,18 @@
       border-bottom: 1px solid var(--border);
     }
     .alerta-row:last-child { border-bottom: none; }
+    .alerta-group-title {
+      grid-column: 1 / -1;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 10px 0 2px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2px;
+    }
+    .alerta-group-title:first-child { padding-top: 4px; }
 
     .estado-dot {
       display: flex;
@@ -810,22 +822,36 @@
   <details class="alertas-info">
     <summary>¿Cómo se calculan las alertas?</summary>
     <div class="alertas-info-body">
-      <div class="alerta-row"><span class="badge rojo">Brecha &gt;20%</span>Avance financiero supera al físico en más de 20 puntos</div>
+      <!-- Alertas de registro -->
+      <div class="alerta-group-title">Alerta de registro</div>
       <div class="alerta-row"><span class="badge rojo">F12B desactualizado</span>Sin registro de seguimiento en más de 10 días desde fin de mes</div>
-      <div class="alerta-row"><span class="badge rojo">Cerrada c/saldo PIM</span>Inversión cerrada pero con presupuesto del año sin ejecutar</div>
-      <div class="alerta-row"><span class="badge rojo">Obra atrasada</span>Fecha de fin vencida y avance físico menor a 100%</div>
-      <div class="alerta-row"><span class="badge amarillo">Sin presup. culminar</span>Tiene costo pendiente pero no tiene PIM disponible este año</div>
-      <div class="alerta-row"><span class="badge amarillo">Brecha 10–20%</span>Avance financiero supera al físico entre 10 y 20 puntos</div>
-      <div class="alerta-row"><span class="badge amarillo">PIM sin ejecutar</span>Tiene PIM asignado pero devengado cero (después de julio)</div>
-      <div class="alerta-row"><span class="badge amarillo">Arranque lento</span>Más de 2 meses desde inicio y sin ningún avance físico ni financiero registrado</div>
-      <div class="alerta-row"><span class="badge amarillo">Brecha invertida</span>Avance físico supera al financiero en más de 20 puntos</div>
       <div class="alerta-row"><span class="badge amarillo">Vence en Xd</span>Menos de 30 días para el fin contractual y avance menor a 80%</div>
+
+      <!-- Alertas de avance -->
+      <div class="alerta-group-title">Alerta de avance</div>
+      <div class="alerta-row"><span class="badge rojo">Brecha &gt;20%</span>Avance financiero supera al físico en más de 20 puntos</div>
+      <div class="alerta-row"><span class="badge amarillo">Brecha 10–20%</span>Avance financiero supera al físico entre 10 y 20 puntos</div>
+      <div class="alerta-row"><span class="badge amarillo">Brecha invertida</span>Avance físico supera al financiero en más de 20 puntos</div>
+      <div class="alerta-row"><span class="badge rojo">Obra atrasada</span>Fecha de fin vencida y avance físico menor a 100%</div>
+      <div class="alerta-row"><span class="badge amarillo">Arranque lento</span>Más de 2 meses desde inicio y sin ningún avance físico ni financiero registrado</div>
+
+      <!-- Alertas presupuestales -->
+      <div class="alerta-group-title">Alerta presupuestal</div>
+      <div class="alerta-row"><span class="badge rojo">Cerrada c/saldo PIM</span>Inversión cerrada pero con presupuesto del año sin ejecutar</div>
+      <div class="alerta-row"><span class="badge amarillo">Sin presup. culminar</span>Tiene costo pendiente pero no tiene PIM disponible este año</div>
+      <div class="alerta-row"><span class="badge amarillo">PIM sin ejecutar</span>Tiene PIM asignado pero devengado cero (después de julio)</div>
       <div class="alerta-row"><span class="badge amarillo">Presupuesto inflado</span>El presupuesto pendiente del año supera al monto pendiente para cierre de la obra</div>
-      <div class="alerta-row"><span class="badge amarillo">Etapa vencida sin doc</span>Etapa del proceso SEACE vencida sin documento publicado</div>
+
+      <!-- Alertas contractuales -->
+      <div class="alerta-group-title">Alerta contractual</div>
       <div class="alerta-row"><span class="badge rojo">Pérdida de buena pro</span>El postor ganador perdió la buena pro en el proceso de contratación</div>
+      <div class="alerta-row"><span class="badge amarillo">Etapa vencida sin doc</span>Etapa del proceso SEACE vencida sin documento publicado</div>
       <div class="alerta-row"><span class="badge amarillo">Adjudicado sin contrato</span>Proceso adjudicado pero sin contrato formalizado en SEACE</div>
       <div class="alerta-row"><span class="badge amarillo">Doble desierto</span>El proceso fue declarado desierto dos veces consecutivas</div>
       <div class="alerta-row"><span class="badge amarillo">Plazo menor normativa</span>Una etapa del cronograma tiene plazo menor al mínimo normativo</div>
+
+      <!-- Sin alertas -->
+      <div class="alerta-group-title" style="border-bottom:none;"></div>
       <div class="alerta-row"><span class="badge verde">Sin alertas</span>Ninguna condición de alerta detectada</div>
     </div>
   </details>
