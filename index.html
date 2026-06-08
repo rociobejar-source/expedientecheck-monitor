@@ -1752,10 +1752,18 @@ async function abrirPopupDetalle(obra) {
       };
       const est = estadoMap[c.estado_proceso] || { label: c.estado_proceso, cls: 'desierto' };
 
+      const fmtTs = ts => {
+        if (!ts) return null;
+        const d = new Date(ts);
+        return isNaN(d) ? null : d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+      };
       const ctrRows = [
         { k: 'Nomenclatura',         v: c.nomenclatura || '—' },
         { k: 'Tipo de proceso',      v: c.tipo_proceso  || '—' },
         { k: 'Valor referencial',    v: fmtMpp(c.valor_referencial_num) },
+        { k: 'Fecha convocatoria',   v: fmtTs(c.fecha_convocatoria_real) },
+        { k: 'Fecha adjudicación',   v: fmtTs(c.fecha_adjudicacion_real) },
+        { k: 'Fecha contrato',       v: fmtTs(c.fecha_contrato_real) },
         { k: 'N° de vueltas',        v: c.nro_vueltas,  warn: c.nro_vueltas > 2 },
         { k: 'Pérdida de buena pro', v: c.hubo_perdida_buena_pro ? 'Sí ⚠' : 'No', warn: c.hubo_perdida_buena_pro },
         { k: 'Contratista',          v: c.contratista_ganador || null },
@@ -1784,14 +1792,14 @@ async function abrirPopupDetalle(obra) {
         // Mapa etapa → fecha publicacion real
         const docMap = {};
         documentos.forEach(doc => {
-          const key = (doc.etapa || '').toLowerCase().replace(/\s+/g, '').substring(0, 22);
+          const key = (doc.etapa || '').toLowerCase().replace(/[\s\n\r]+/g, '').substring(0, 22);
           if (!docMap[key]) docMap[key] = doc.fecha_publicacion;
         });
 
         document.getElementById('pp-timeline').innerHTML = cronograma.map(etapa => {
           const fechaMax = fmtFechaStr(etapa.fecha_fin);
           const maxDate  = parseFechaStr(etapa.fecha_fin);
-          const key      = (etapa.etapa || '').toLowerCase().replace(/\s+/g, '').substring(0, 22);
+          const key      = (etapa.etapa || '').toLowerCase().replace(/[\s\n\r]+/g, '').substring(0, 22);
           const realStr  = docMap[key] || null;
           const fechaReal = realStr ? fmtFechaStr(realStr) : null;
           const vencida  = !realStr && maxDate && maxDate < hoy;
