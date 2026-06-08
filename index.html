@@ -1011,7 +1011,7 @@ async function cargarObras() {
     const dataObras   = await resObras.json();
     const dataEntidad = await resEntidad.json();
 
-    obras       = dataObras.obras || [];
+    obras       = (dataObras.obras || []).filter(o => o.estado_inversion !== 'NO REGISTRADO EN EL INVIERTE');
     kpisEntidad = dataEntidad;
 
     if (dataEntidad.entidad?.nombre) {
