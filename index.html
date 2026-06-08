@@ -1791,16 +1791,20 @@ async function abrirPopupDetalle(obra) {
 
         // Mapa etapa → fecha publicacion real
         const docMap = {};
+        const normEtapa = s => (s || '').toLowerCase().replace(/[\s\n\r]+/g, '');
         documentos.forEach(doc => {
-          const key = (doc.etapa || '').toLowerCase().replace(/[\s\n\r]+/g, '').substring(0, 22);
+          const key = normEtapa(doc.etapa);
           if (!docMap[key]) docMap[key] = doc.fecha_publicacion;
         });
 
         document.getElementById('pp-timeline').innerHTML = cronograma.map(etapa => {
           const fechaMax = fmtFechaStr(etapa.fecha_fin);
           const maxDate  = parseFechaStr(etapa.fecha_fin);
-          const key      = (etapa.etapa || '').toLowerCase().replace(/[\s\n\r]+/g, '').substring(0, 22);
-          const realStr  = docMap[key] || null;
+          const keyFull  = normEtapa(etapa.etapa);
+          // match exacto o por prefijo (cronograma puede tener sufijo con nombre de oficina)
+          const matchKey = docMap[keyFull] ? keyFull
+            : Object.keys(docMap).find(k => keyFull.startsWith(k) || k.startsWith(keyFull));
+          const realStr  = matchKey ? docMap[matchKey] : null;
           const fechaReal = realStr ? fmtFechaStr(realStr) : null;
           const vencida  = !realStr && maxDate && maxDate < hoy;
           const cls      = realStr ? 'ok' : vencida ? 'vencida' : 'pendiente';
