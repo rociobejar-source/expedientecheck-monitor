@@ -820,6 +820,7 @@
       <div class="alerta-row"><span class="badge amarillo">Arranque lento</span>Más de 2 meses desde inicio y sin ningún avance físico ni financiero registrado</div>
       <div class="alerta-row"><span class="badge amarillo">Brecha invertida</span>Avance físico supera al financiero en más de 20 puntos</div>
       <div class="alerta-row"><span class="badge amarillo">Vence en Xd</span>Menos de 30 días para el fin contractual y avance menor a 80%</div>
+      <div class="alerta-row"><span class="badge amarillo">Presupuesto inflado</span>El presupuesto pendiente del año supera al monto pendiente para cierre de la obra</div>
       <div class="alerta-row"><span class="badge verde">Sin alertas</span>Ninguna condición de alerta detectada</div>
     </div>
   </details>
@@ -922,7 +923,7 @@
       <div class="pp-fin-grid" id="pp-fin"></div>
       <div class="pp-bars"    id="pp-bars"></div>
       <hr class="pp-divider">
-      <p class="pp-section">📄 Información contractual</p>
+      <p class="pp-section">📄 Información contractual <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:6px">(se muestra el procesos más reciente registrado en SEACE)</span></p>
       <div id="pp-ctr"></div>
       <hr class="pp-divider" id="pp-tl-divider" style="display:none">
       <p class="pp-section" id="pp-tl-label" style="display:none">📅 Cronograma del proceso</p>
@@ -1120,6 +1121,11 @@ function calcularAlertaInversion(o) {
   if (fis !== null && fin !== null && (fis - fin) > 20)                        return 'amarillo';
   if (diasParaFin !== null && diasParaFin >= 0 && diasParaFin <= 30 && (fis || 0) < 80) return 'amarillo';
 
+  // Presupuesto inflado
+  const _pEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
+  const _pCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
+  if (_pEjec > 0 && _pCierre > 0 && _pEjec > _pCierre) return 'amarillo';
+
   return 'verde';
 }
 
@@ -1243,6 +1249,28 @@ function renderTabla() {
       if (fis !== null && fin !== null && (fis - fin) > 20)
         badges.push(`<span class="badge amarillo">Brecha invertida</span>`);
     }
+
+    // Alertas contractuales SEACE (si la obra ya las tiene cargadas en memoria)
+    if (Array.isArray(o.seace_alertas) && o.seace_alertas.length) {
+      const tipos = {};
+      o.seace_alertas.forEach(a => { tipos[a.tipo_alerta] = (tipos[a.tipo_alerta] || 0) + 1; });
+      if (tipos.ETAPA_VENCIDA_SIN_DOC)
+        badges.push(`<span class="badge azul">Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}</span>`);
+      if (tipos.PERDIDA_BUENA_PRO)
+        badges.push(`<span class="badge azul">Pérdida de buena pro</span>`);
+      if (tipos.DOBLE_DESIERTO)
+        badges.push(`<span class="badge azul">Doble desierto</span>`);
+      if (tipos.ADJUDICADO_SIN_CONTRATO)
+        badges.push(`<span class="badge azul">Adjudicado sin contrato</span>`);
+      if (tipos.PLAZO_MENOR_NORMATIVA)
+        badges.push(`<span class="badge azul">Plazo menor normativa</span>`);
+    }
+
+    // Presupuesto inflado
+    const _pendEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
+    const _pendCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
+    if (_pendEjec > 0 && _pendCierre > 0 && _pendEjec > _pendCierre)
+      badges.push(`<span class="badge amarillo">Presupuesto inflado</span>`);
 
     const todasAlertas = badges.length > 0
       ? `<div style="display:flex;flex-direction:column;gap:4px;">${badges.join('')}</div>`
@@ -1512,8 +1540,6 @@ document.getElementById('btn-save').addEventListener('click', async () => {
 function fmtMpp(n) {
   const v = Number(n);
   if (!n || isNaN(v)) return '—';
-  if (Math.abs(v) >= 1e6) return 'S/ ' + (v / 1e6).toFixed(2) + 'M';
-  if (Math.abs(v) >= 1e3) return 'S/ ' + Math.round(v / 1e3) + 'K';
   return 'S/ ' + Math.round(v).toLocaleString('es-PE');
 }
 
@@ -1539,8 +1565,21 @@ async function abrirPopupDetalle(obra) {
 
   // Datos básicos desde obra (ya en memoria)
   document.getElementById('pp-title').textContent = obra.nombre || 'Sin nombre';
-  document.getElementById('pp-cui').textContent =
-    `CUI ${obra.cui} · ${SLUG.charAt(0).toUpperCase() + SLUG.slice(1)} · ${obra.estado_inversion || '—'}`;
+  const cuiDisplay = obra.cui || '—';
+  const slugLabel  = SLUG.charAt(0).toUpperCase() + SLUG.slice(1);
+  const urlInfoobras = `https://infobras.contraloria.gob.pe/infobrasweb`;
+  const urlSSI       = `https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${cuiDisplay}&tipo=2`;
+  const urlSEACE     = `https://prod2.seace.gob.pe/seacebus-uiwd-pub/buscadorPublico/buscadorPublico.xhtml#`;
+  document.getElementById('pp-cui').innerHTML =
+    `<span style="font-family:var(--mono)">${cuiDisplay}</span>` +
+    ` · ${slugLabel} · ${obra.estado_inversion || '—'}` +
+    `&nbsp;<button onclick="navigator.clipboard.writeText('${cuiDisplay}').then(()=>toast('CUI copiado','success'))" ` +
+    `style="border:none;background:none;cursor:pointer;font-size:11px;color:var(--muted);padding:0 2px" title="Copiar CUI">⎘</button>` +
+    `<span style="margin-left:8px;font-size:11px">` +
+    `<a href="${urlInfoobras}" target="_blank" style="color:var(--muted);text-decoration:none;margin-right:6px" title="Ver en Infobras">Infobras ↗</a>` +
+    `<a href="${urlSSI}"       target="_blank" style="color:var(--muted);text-decoration:none;margin-right:6px" title="Ver en SSI-MEF">SSI ↗</a>` +
+    `<a href="${urlSEACE}"     target="_blank" style="color:var(--muted);text-decoration:none" title="Buscar en SEACE">SEACE ↗</a>` +
+    `</span>`;
 
   // Alertas MEF (desde calcularAlertaInversion ya existente)
   const alertasMef = [];
@@ -1574,6 +1613,11 @@ async function abrirPopupDetalle(obra) {
       alertasMef.push({ t: 'amarillo', txt: 'Arranque lento' });
     if (fis !== null && fin !== null && (fis - fin) > 20)
       alertasMef.push({ t: 'amarillo', txt: 'Brecha invertida' });
+    // Presupuesto inflado: pendiente PIM año > pendiente para cierre
+    const _pendEjecMef   = (Number(obra.pim_2026) || 0) - (Number(obra.devengado_2026) || 0);
+    const _pendCierreMef = (Number(obra.costo_actualizado) || 0) - (Number(obra.dev_acumulado) || 0);
+    if (_pendEjecMef > 0 && _pendCierreMef > 0 && _pendEjecMef > _pendCierreMef)
+      alertasMef.push({ t: 'amarillo', txt: 'Presupuesto inflado' });
   }
 
   // Renderizar alertas MEF (SEACE se agrega después)
