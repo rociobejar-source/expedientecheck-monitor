@@ -821,11 +821,11 @@
       <div class="alerta-row"><span class="badge amarillo">Brecha invertida</span>Avance físico supera al financiero en más de 20 puntos</div>
       <div class="alerta-row"><span class="badge amarillo">Vence en Xd</span>Menos de 30 días para el fin contractual y avance menor a 80%</div>
       <div class="alerta-row"><span class="badge amarillo">Presupuesto inflado</span>El presupuesto pendiente del año supera al monto pendiente para cierre de la obra</div>
-      <div class="alerta-row"><span class="badge azul">Etapa vencida sin doc</span>Etapa del proceso SEACE vencida sin documento publicado</div>
-      <div class="alerta-row"><span class="badge azul">Pérdida de buena pro</span>El postor ganador perdió la buena pro en el proceso de contratación</div>
-      <div class="alerta-row"><span class="badge azul">Adjudicado sin contrato</span>Proceso adjudicado pero sin contrato formalizado en SEACE</div>
-      <div class="alerta-row"><span class="badge azul">Doble desierto</span>El proceso fue declarado desierto dos veces consecutivas</div>
-      <div class="alerta-row"><span class="badge azul">Plazo menor normativa</span>Una etapa del cronograma tiene plazo menor al mínimo normativo</div>
+      <div class="alerta-row"><span class="badge amarillo">Etapa vencida sin doc</span>Etapa del proceso SEACE vencida sin documento publicado</div>
+      <div class="alerta-row"><span class="badge rojo">Pérdida de buena pro</span>El postor ganador perdió la buena pro en el proceso de contratación</div>
+      <div class="alerta-row"><span class="badge amarillo">Adjudicado sin contrato</span>Proceso adjudicado pero sin contrato formalizado en SEACE</div>
+      <div class="alerta-row"><span class="badge amarillo">Doble desierto</span>El proceso fue declarado desierto dos veces consecutivas</div>
+      <div class="alerta-row"><span class="badge amarillo">Plazo menor normativa</span>Una etapa del cronograma tiene plazo menor al mínimo normativo</div>
       <div class="alerta-row"><span class="badge verde">Sin alertas</span>Ninguna condición de alerta detectada</div>
     </div>
   </details>
@@ -1131,6 +1131,13 @@ function calcularAlertaInversion(o) {
   const _pCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
   if (_pEjec > 0 && _pCierre > 0 && _pEjec > _pCierre) return 'amarillo';
 
+  // Alertas contractuales SEACE
+  if (Array.isArray(o.seace_alertas) && o.seace_alertas.length) {
+    const tiposSeace = o.seace_alertas.map(a => a.tipo_alerta || a);
+    if (tiposSeace.includes('PERDIDA_BUENA_PRO')) return 'rojo';
+    return 'amarillo';
+  }
+
   return 'verde';
 }
 
@@ -1258,17 +1265,17 @@ function renderTabla() {
     // Alertas contractuales SEACE (si la obra ya las tiene cargadas en memoria)
     if (Array.isArray(o.seace_alertas) && o.seace_alertas.length) {
       const tipos = {};
-      o.seace_alertas.forEach(a => { tipos[a.tipo_alerta] = (tipos[a.tipo_alerta] || 0) + 1; });
+      o.seace_alertas.forEach(a => { const t = a.tipo_alerta || a; tipos[t] = (tipos[t] || 0) + 1; });
       if (tipos.ETAPA_VENCIDA_SIN_DOC)
-        badges.push(`<span class="badge azul">Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}</span>`);
+        badges.push(`<span class="badge amarillo">Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}</span>`);
       if (tipos.PERDIDA_BUENA_PRO)
-        badges.push(`<span class="badge azul">Pérdida de buena pro</span>`);
+        badges.push(`<span class="badge rojo">Pérdida de buena pro</span>`);
       if (tipos.DOBLE_DESIERTO)
-        badges.push(`<span class="badge azul">Doble desierto</span>`);
+        badges.push(`<span class="badge amarillo">Doble desierto</span>`);
       if (tipos.ADJUDICADO_SIN_CONTRATO)
-        badges.push(`<span class="badge azul">Adjudicado sin contrato</span>`);
+        badges.push(`<span class="badge amarillo">Adjudicado sin contrato</span>`);
       if (tipos.PLAZO_MENOR_NORMATIVA)
-        badges.push(`<span class="badge azul">Plazo menor normativa</span>`);
+        badges.push(`<span class="badge amarillo">Plazo menor normativa</span>`);
     }
 
     // Presupuesto inflado
@@ -1688,21 +1695,21 @@ async function abrirPopupDetalle(obra) {
     const resp = await fetch(`${API}/api/seace/${obra.cui}?e=${SLUG}`);
     const { contrato: c, alertas: alertasSEACE } = await resp.json();
 
-    // Alertas SEACE → pills azules
+    // Alertas SEACE → pills con color correcto
     const seacePills = [];
     if (Array.isArray(alertasSEACE) && alertasSEACE.length) {
       const tipos = {};
       alertasSEACE.forEach(a => { tipos[a.tipo_alerta] = (tipos[a.tipo_alerta] || 0) + 1; });
-      if (tipos.ETAPA_VENCIDA_SIN_DOC)
-        seacePills.push({ t: 'azul', txt: `Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}` });
-      if (tipos.PLAZO_MENOR_NORMATIVA)
-        seacePills.push({ t: 'azul', txt: 'Plazo menor normativa' });
-      if (tipos.ADJUDICADO_SIN_CONTRATO)
-        seacePills.push({ t: 'azul', txt: 'Adjudicado sin contrato' });
-      if (tipos.DOBLE_DESIERTO)
-        seacePills.push({ t: 'azul', txt: 'Doble desierto' });
       if (tipos.PERDIDA_BUENA_PRO)
-        seacePills.push({ t: 'azul', txt: 'Pérdida de buena pro' });
+        seacePills.push({ t: 'rojo', txt: 'Pérdida de buena pro' });
+      if (tipos.ETAPA_VENCIDA_SIN_DOC)
+        seacePills.push({ t: 'amarillo', txt: `Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}` });
+      if (tipos.PLAZO_MENOR_NORMATIVA)
+        seacePills.push({ t: 'amarillo', txt: 'Plazo menor normativa' });
+      if (tipos.ADJUDICADO_SIN_CONTRATO)
+        seacePills.push({ t: 'amarillo', txt: 'Adjudicado sin contrato' });
+      if (tipos.DOBLE_DESIERTO)
+        seacePills.push({ t: 'amarillo', txt: 'Doble desierto' });
     }
     renderAlerts(seacePills);
 
