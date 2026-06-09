@@ -734,6 +734,15 @@
       background: #f5f3ee; border-radius: 8px; padding: 12px 14px;
       font-size: 12px; color: var(--muted); text-align: center;
     }
+    /* Pestañas contractuales */
+    .pp-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .pp-tab-btn {
+      background: transparent; border: 1px solid var(--border); border-radius: 20px;
+      color: var(--muted); font-family: var(--sans); font-size: 12px;
+      font-weight: 500; padding: 5px 14px; cursor: pointer; transition: all 0.15s;
+    }
+    .pp-tab-btn.active { background: var(--header); border-color: var(--header); color: #fff; }
+    .pp-tab-btn:hover:not(.active) { border-color: var(--text); color: var(--text); }
   </style>
 </head>
 <body>
@@ -954,7 +963,7 @@
       <div class="pp-fin-grid" id="pp-fin"></div>
       <div class="pp-bars"    id="pp-bars"></div>
       <hr class="pp-divider">
-      <p class="pp-section">📄 Información contractual <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:6px">(se muestra el procesos más reciente registrado en SEACE)</span></p>
+      <p class="pp-section">📄 Información contractual</p>
       <div id="pp-ctr"></div>
       <hr class="pp-divider" id="pp-tl-divider" style="display:none">
       <p class="pp-section" id="pp-tl-label" style="display:none">📅 Cronograma del proceso</p>
@@ -982,6 +991,7 @@ let kpisEntidad = null;
 let filtro      = 'todas';
 let rolActivo   = 'ciudadana';
 let obraActual  = null;
+const seaceCache = new Map(); // cui → Promise<data>
 
 // ── FECHA ────────────────────────────────────────────────────
 document.getElementById('fecha-hoy').textContent =
@@ -1408,6 +1418,10 @@ function renderTabla() {
   }).join('');
 
   tbody.querySelectorAll('.btn-detalle').forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
+      if (obra) fetchSeace(obra.cui); // precarga en hover
+    });
     btn.addEventListener('click', () => {
       const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
       if (!obra) return;
@@ -1596,6 +1610,17 @@ function fmtFechaStr(str) {
   return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+function fetchSeace(cui) {
+  if (!seaceCache.has(cui)) {
+    seaceCache.set(cui,
+      fetch(`${API}/api/seace/${cui}?e=${SLUG}`)
+        .then(r => r.json())
+        .catch(err => { seaceCache.delete(cui); throw err; })
+    );
+  }
+  return seaceCache.get(cui);
+}
+
 async function abrirPopupDetalle(obra) {
   const overlay = document.getElementById('popup-overlay');
   overlay.classList.add('open');
@@ -1718,8 +1743,19 @@ async function abrirPopupDetalle(obra) {
     '<p style="font-size:12px;color:var(--muted);padding:8px 0">Cargando datos contractuales...</p>';
 
   try {
-    const resp = await fetch(`${API}/api/seace/${obra.cui}?e=${SLUG}`);
-    const { contrato: c, alertas: alertasSEACE } = await resp.json();
+    const data = await fetchSeace(obra.cui);
+    const alertasSEACE = data.alertas;
+
+    // Support array or single contrato response
+    const contratosArr = Array.isArray(data.contratos) ? data.contratos
+      : Array.isArray(data.contrato) ? data.contrato
+      : data.contrato ? [data.contrato]
+      : [];
+    let contratoObra        = contratosArr.find(c => c.objeto_contratacion === 'Obra') || null;
+    let contratoSupervision = contratosArr.find(c => c.objeto_contratacion === 'Consultoría de Obra') || null;
+    // Fallback: single contrato without objeto_contratacion → show in Obra tab
+    if (!contratoObra && !contratoSupervision && contratosArr.length > 0)
+      contratoObra = contratosArr[0];
 
     // Alertas SEACE → pills con color correcto
     const seacePills = [];
@@ -1739,7 +1775,7 @@ async function abrirPopupDetalle(obra) {
     }
     renderAlerts(seacePills);
 
-    if (!c || !c.estado_proceso) {
+    if (!contratoObra && !contratoSupervision) {
       document.getElementById('pp-ctr').innerHTML =
         '<div class="pp-no-seace">Sin proceso de contratación registrado en SEACE para este CUI</div>';
     } else {
@@ -1750,73 +1786,111 @@ async function abrirPopupDetalle(obra) {
         DESIERTO:   { label: 'Desierto',    cls: 'desierto' },
         CANCELADO:  { label: 'Cancelado',   cls: 'desierto' },
       };
-      const est = estadoMap[c.estado_proceso] || { label: c.estado_proceso, cls: 'desierto' };
 
       const fmtTs = ts => {
         if (!ts) return null;
         const d = new Date(ts);
         return isNaN(d) ? null : d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
       };
-      const ctrRows = [
-        { k: 'Nomenclatura',         v: c.nomenclatura || '—' },
-        { k: 'Tipo de proceso',      v: c.tipo_proceso  || '—' },
-        { k: 'Valor referencial',    v: fmtMpp(c.valor_referencial_num) },
-        { k: 'Fecha convocatoria',   v: fmtTs(c.fecha_convocatoria_real) },
-        { k: 'Fecha adjudicación',   v: fmtTs(c.fecha_adjudicacion_real) },
-        { k: 'Fecha contrato',       v: fmtTs(c.fecha_contrato_real) },
-        { k: 'N° de vueltas',        v: c.nro_vueltas,  warn: c.nro_vueltas > 2 },
-        { k: 'Pérdida de buena pro', v: c.hubo_perdida_buena_pro ? 'Sí ⚠' : 'No', warn: c.hubo_perdida_buena_pro },
-        { k: 'Contratista',          v: c.contratista_ganador || null },
-        { k: 'Monto adjudicado',     v: c.monto_adjudicado ? fmtMpp(c.monto_adjudicado) : null },
-      ];
 
-      document.getElementById('pp-ctr').innerHTML =
-        `<span class="pp-estado-badge ${est.cls}">● ${est.label}</span>` +
-        '<div>' +
-        ctrRows.map(r => {
-          const val = r.v != null ? r.v : '—';
-          const cls = r.v == null ? 'na' : r.warn ? 'warn' : '';
-          return `<div class="pp-ctr-row"><span class="pp-ctr-key">${r.k}</span><span class="pp-ctr-val ${cls}">${val}</span></div>`;
-        }).join('') +
-        '</div>';
+      const showContractTab = tabId => {
+        document.querySelectorAll('.pp-tab-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.tab === tabId));
 
-      // Cronograma
-      const cronograma = Array.isArray(c.cronograma) ? c.cronograma : [];
-      const documentos  = Array.isArray(c.documentos)  ? c.documentos  : [];
+        const c = tabId === 'obra' ? contratoObra : contratoSupervision;
+        const label = tabId === 'obra' ? 'obra' : 'supervisión';
+        const content = document.getElementById('pp-tab-content');
 
-      if (cronograma.length) {
-        document.getElementById('pp-tl-divider').style.display = '';
-        document.getElementById('pp-tl-label').style.display   = '';
-        document.getElementById('pp-tl-head').style.display    = '';
+        if (!c || !c.estado_proceso) {
+          content.innerHTML =
+            `<div class="pp-no-seace">Sin proceso de ${label} registrado en SEACE para esta inversión</div>`;
+          document.getElementById('pp-tl-divider').style.display = 'none';
+          document.getElementById('pp-tl-label').style.display   = 'none';
+          document.getElementById('pp-tl-head').style.display    = 'none';
+          document.getElementById('pp-timeline').innerHTML = '';
+          return;
+        }
 
-        // Mapa etapa → fecha publicacion real
-        const docMap = {};
-        const normEtapa = s => (s || '').toLowerCase().replace(/[\s\n\r]+/g, '');
-        documentos.forEach(doc => {
-          const key = normEtapa(doc.etapa);
-          if (!docMap[key]) docMap[key] = doc.fecha_publicacion;
-        });
+        const est = estadoMap[c.estado_proceso] || { label: c.estado_proceso, cls: 'desierto' };
+        const ctrRows = [
+          { k: 'Nomenclatura',         v: c.nomenclatura || '—' },
+          { k: 'Tipo de proceso',      v: c.tipo_proceso_texto || c.tipo_proceso || '—' },
+          { k: 'Valor referencial',    v: fmtMpp(c.valor_referencial_num) },
+          { k: 'Fecha convocatoria',   v: fmtTs(c.fecha_convocatoria_real) },
+          { k: 'Fecha adjudicación',   v: fmtTs(c.fecha_adjudicacion_real) },
+          { k: 'Fecha contrato',       v: fmtTs(c.fecha_contrato_real) },
+          { k: 'N° de vueltas',        v: c.nro_vueltas,  warn: c.nro_vueltas > 2 },
+          { k: 'Pérdida de buena pro', v: c.hubo_perdida_buena_pro ? 'Sí ⚠' : 'No', warn: c.hubo_perdida_buena_pro },
+          { k: 'Contratista',          v: c.contratista_ganador || null },
+          { k: 'Monto adjudicado',     v: c.monto_adjudicado ? fmtMpp(c.monto_adjudicado) : null },
+        ];
 
-        document.getElementById('pp-timeline').innerHTML = cronograma.map(etapa => {
-          const fechaMax = fmtFechaStr(etapa.fecha_fin);
-          const maxDate  = parseFechaStr(etapa.fecha_fin);
-          const keyFull  = normEtapa(etapa.etapa);
-          // match exacto o por prefijo (cronograma puede tener sufijo con nombre de oficina)
-          const matchKey = docMap[keyFull] ? keyFull
-            : Object.keys(docMap).find(k => keyFull.startsWith(k) || k.startsWith(keyFull));
-          const realStr  = matchKey ? docMap[matchKey] : null;
-          const fechaReal = realStr ? fmtFechaStr(realStr) : null;
-          const vencida  = !realStr && maxDate && maxDate < hoy;
-          const cls      = realStr ? 'ok' : vencida ? 'vencida' : 'pendiente';
-          const txt      = realStr ? 'Publicado' : vencida ? 'Sin doc' : 'Pendiente';
-          return `<div class="pp-tl-row ${vencida ? 'es-vencida' : ''}">
-            <span class="pp-tl-nombre" title="${etapa.etapa}">${etapa.etapa}</span>
-            <span class="pp-tl-fecha">${fechaMax || '—'}</span>
-            <span class="pp-tl-fecha ${fechaReal ? '' : 'vacia'}">${fechaReal || '—'}</span>
-            <span class="pp-tl-status ${cls}">${txt}</span>
-          </div>`;
-        }).join('');
-      }
+        content.innerHTML =
+          `<span class="pp-estado-badge ${est.cls}">● ${est.label}</span>` +
+          '<div>' +
+          ctrRows.map(r => {
+            const val = r.v != null ? r.v : '—';
+            const cls = r.v == null ? 'na' : r.warn ? 'warn' : '';
+            return `<div class="pp-ctr-row"><span class="pp-ctr-key">${r.k}</span><span class="pp-ctr-val ${cls}">${val}</span></div>`;
+          }).join('') +
+          '</div>';
+
+        // Cronograma
+        const cronograma = Array.isArray(c.cronograma) ? c.cronograma : [];
+        const documentos  = Array.isArray(c.documentos)  ? c.documentos  : [];
+
+        if (cronograma.length) {
+          document.getElementById('pp-tl-divider').style.display = '';
+          document.getElementById('pp-tl-label').style.display   = '';
+          document.getElementById('pp-tl-head').style.display    = '';
+
+          const docMap = {};
+          const normEtapa = s => (s || '').toLowerCase().replace(/[\s\n\r]+/g, '');
+          documentos.forEach(doc => {
+            const key = normEtapa(doc.etapa);
+            if (!docMap[key]) docMap[key] = doc.fecha_publicacion;
+          });
+
+          document.getElementById('pp-timeline').innerHTML = cronograma.map(etapa => {
+            const fechaMax = fmtFechaStr(etapa.fecha_fin);
+            const maxDate  = parseFechaStr(etapa.fecha_fin);
+            const keyFull  = normEtapa(etapa.etapa);
+            // match exacto o por prefijo (cronograma puede tener sufijo con nombre de oficina)
+            const matchKey = docMap[keyFull] ? keyFull
+              : Object.keys(docMap).find(k => keyFull.startsWith(k) || k.startsWith(keyFull));
+            const realStr  = matchKey ? docMap[matchKey] : null;
+            const fechaReal = realStr ? fmtFechaStr(realStr) : null;
+            const vencida  = !realStr && maxDate && maxDate < hoy;
+            const cls      = realStr ? 'ok' : vencida ? 'vencida' : 'pendiente';
+            const txt      = realStr ? 'Publicado' : vencida ? 'Sin doc' : 'Pendiente';
+            return `<div class="pp-tl-row ${vencida ? 'es-vencida' : ''}">
+              <span class="pp-tl-nombre" title="${etapa.etapa}">${etapa.etapa}</span>
+              <span class="pp-tl-fecha">${fechaMax || '—'}</span>
+              <span class="pp-tl-fecha ${fechaReal ? '' : 'vacia'}">${fechaReal || '—'}</span>
+              <span class="pp-tl-status ${cls}">${txt}</span>
+            </div>`;
+          }).join('');
+        } else {
+          document.getElementById('pp-tl-divider').style.display = 'none';
+          document.getElementById('pp-tl-label').style.display   = 'none';
+          document.getElementById('pp-tl-head').style.display    = 'none';
+          document.getElementById('pp-timeline').innerHTML = '';
+        }
+      };
+
+      document.getElementById('pp-ctr').innerHTML = `
+        <div class="pp-tabs" id="pp-tabs">
+          <button class="pp-tab-btn active" data-tab="obra">Contrato de Obra</button>
+          <button class="pp-tab-btn" data-tab="supervision">Contrato de Supervisión</button>
+        </div>
+        <div id="pp-tab-content"></div>`;
+
+      document.getElementById('pp-tabs').addEventListener('click', e => {
+        const btn = e.target.closest('.pp-tab-btn');
+        if (btn) showContractTab(btn.dataset.tab);
+      });
+
+      showContractTab('obra');
     }
   } catch (err) {
     document.getElementById('pp-ctr').innerHTML =
