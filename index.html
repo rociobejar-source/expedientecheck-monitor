@@ -1627,7 +1627,7 @@ function fetchSeace(cui) {
 async function abrirPopupDetalle(obra) {
   const overlay = document.getElementById('popup-overlay');
   overlay.classList.add('open');
-  overlay.scrollTop = 0;
+  document.getElementById('popup-box').scrollTop = 0;
 
   // Datos básicos desde obra (ya en memoria)
   document.getElementById('pp-title').textContent = obra.nombre || 'Sin nombre';
