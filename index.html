@@ -1419,9 +1419,12 @@ function renderTabla() {
 
   tbody.querySelectorAll('.btn-detalle').forEach(btn => {
     btn.addEventListener('mouseenter', () => {
-      const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
-      if (obra) fetchSeace(obra.cui); // precarga en hover
+      btn._prefetchTimer = setTimeout(() => {
+        const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
+        if (obra) fetchSeace(obra.cui);
+      }, 300);
     });
+    btn.addEventListener('mouseleave', () => clearTimeout(btn._prefetchTimer));
     btn.addEventListener('click', () => {
       const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
       if (!obra) return;
