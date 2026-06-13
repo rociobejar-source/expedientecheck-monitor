@@ -1754,8 +1754,13 @@ async function abrirPopupDetalle(obra) {
       : Array.isArray(data.contrato) ? data.contrato
       : data.contrato ? [data.contrato]
       : [];
-    let contratoObra        = contratosArr.find(c => c.objeto_contratacion === 'Obra') || null;
-    let contratoSupervision = contratosArr.find(c => c.objeto_contratacion === 'Consultoría de Obra') || null;
+    // Priorizar CONTRATADO > ADJUDICADO > EN_PROCESO > DESIERTO
+    const prioridad = { 'CONTRATADO': 0, 'ADJUDICADO': 1, 'EN_PROCESO': 2, 'DESIERTO': 3 };
+    const contratosOrdenados = [...contratosArr].sort((a, b) =>
+      (prioridad[a.estado_proceso] ?? 9) - (prioridad[b.estado_proceso] ?? 9));
+
+    let contratoObra        = contratosOrdenados.find(c => c.objeto_contratacion === 'Obra') || null;
+    let contratoSupervision = contratosOrdenados.find(c => c.objeto_contratacion === 'Consultoría de Obra') || null;
     // Fallback: single contrato without objeto_contratacion → show in Obra tab
     if (!contratoObra && !contratoSupervision && contratosArr.length > 0)
       contratoObra = contratosArr[0];
