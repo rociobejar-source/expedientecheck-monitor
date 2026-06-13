@@ -1826,8 +1826,13 @@ async function abrirPopupDetalle(obra) {
           { k: 'Valor referencial',    v: fmtMpp(c.valor_referencial_num) },
           { k: 'Fecha convocatoria',   v: fmtTs(c.fecha_convocatoria_real) },
           { k: 'Fecha adjudicación',   v: fmtTs(c.fecha_adjudicacion_real) },
+          { k: 'Duración convocatoria→BP',
+            v: (c.estado_proceso === 'CONTRATADO' || c.estado_proceso === 'ADJUDICADO')
+                && c.fecha_convocatoria_real && c.fecha_adjudicacion_real
+              ? `${Math.round((new Date(c.fecha_adjudicacion_real) - new Date(c.fecha_convocatoria_real)) / (1000*60*60*24))} días calendario`
+              : null
+          },
           { k: 'Fecha contrato',       v: fmtTs(c.fecha_contrato_real) },
-          { k: 'N° de vueltas',        v: c.nro_vueltas,  warn: c.nro_vueltas > 2 },
           { k: 'Pérdida de buena pro', v: c.hubo_perdida_buena_pro ? 'Sí ⚠' : 'No', warn: c.hubo_perdida_buena_pro },
           { k: 'Contratista',          v: c.contratista_ganador || null },
           { k: 'Monto adjudicado',     v: c.monto_adjudicado ? fmtMpp(c.monto_adjudicado) : null },
