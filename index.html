@@ -1201,7 +1201,7 @@ function renderStats() {
     else cVerde++;
   });
 
-  document.getElementById('stat-total').textContent              = s.total;
+  document.getElementById('stat-total').textContent              = obras.length;
   document.getElementById('stat-pim').textContent                = fmtM(s.pim_total);
   document.getElementById('stat-devengado').textContent          = fmtM(s.devengado_total);
   document.getElementById('stat-dev-pct').textContent            = `${pct}% del PIM`;
