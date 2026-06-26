@@ -727,14 +727,58 @@ document.getElementById('inputEjecutora').addEventListener('keydown', e => {
   if (e.key === 'Enter') iniciarDiagnostico();
 });
 
-// ── GENERAR PDF ───────────────────────────────────────────────
+// ── GENERAR PDF ────────────────────────────────────────────────
 function imprimirReporte() {
-  // Mostrar #resultado temporalmente si estuviera oculto
-  const res = document.getElementById('resultado');
-  const wasHidden = res.style.display === 'none';
-  if (wasHidden) res.style.display = 'block';
-  window.print();
-  if (wasHidden) res.style.display = 'none';
+  const contenido = document.getElementById('resultado').innerHTML;
+  const ejecutora = document.querySelector('.report-muni')?.textContent || '';
+
+  const ventana = window.open('', '_blank');
+  ventana.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>ExpedienteCheck</title><style>' +
+    ':root{--navy:#0B2341;--gold:#D4A62A;--beige:#F4EFE7;--text:#1C1C1C;--text2:#5a5a5a;--border:#e0d9ce;--surface:#ffffff;}' +
+    '*{box-sizing:border-box;margin:0;padding:0;}' +
+    'body{font-family:Segoe UI,system-ui,sans-serif;background:var(--beige);color:var(--text);padding:20px;}' +
+    '.report-header{background:var(--navy);border-radius:12px;padding:22px 24px;margin-bottom:16px;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+    '.report-muni{font-size:18px;font-weight:700;margin-bottom:4px;}' +
+    '.report-sub{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:16px;}' +
+    '.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}' +
+    '.kpi{background:rgba(255,255,255,.08);border-radius:8px;padding:12px 14px;}' +
+    '.kpi-val{font-size:20px;font-weight:700;color:#fff;line-height:1;}' +
+    '.kpi-lbl{font-size:10px;color:rgba(255,255,255,.5);margin-top:4px;text-transform:uppercase;letter-spacing:.04em;}' +
+    '.section{background:var(--surface);border-radius:12px;border:1px solid var(--border);margin-bottom:16px;overflow:hidden;}' +
+    '.section-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}' +
+    '.section-head h3{font-size:14px;font-weight:600;color:var(--navy);}' +
+    '.section-head .count{background:var(--navy);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;}' +
+    '.inv-card{padding:16px 18px;border-bottom:1px solid #f0ebe3;}' +
+    '.inv-card:last-child{border-bottom:none;}' +
+    '.inv-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}' +
+    '.inv-nombre{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;flex:1;}' +
+    '.inv-cui{font-size:11px;color:var(--text2);font-family:monospace;background:#f0ebe3;padding:2px 6px;border-radius:4px;white-space:nowrap;text-decoration:none;}' +
+    '.inv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;}' +
+    '.inv-kpi{background:#f8f4ef;border-radius:6px;padding:8px 10px;}' +
+    '.inv-kpi-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}' +
+    '.inv-kpi-val{font-size:13px;font-weight:700;color:var(--text);line-height:1.2;}' +
+    '.inv-kpi-val.muted{color:var(--text2);font-weight:500;}' +
+    '.inv-prog{margin:10px 0 8px;display:flex;flex-direction:column;gap:5px;}' +
+    '.inv-prog-row{display:flex;align-items:center;gap:8px;}' +
+    '.inv-prog-lbl{font-size:10px;color:var(--text2);width:130px;flex-shrink:0;}' +
+    '.inv-prog-bar{flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;}' +
+    '.inv-prog-fill{height:100%;border-radius:99px;}' +
+    '.inv-prog-fill.fisico{background:#3b82f6;}' +
+    '.inv-prog-fill.financiero{background:#1D8F6A;}' +
+    '.inv-prog-pct{font-size:11px;font-weight:600;color:var(--text);width:38px;text-align:right;flex-shrink:0;}' +
+    '.inv-footer{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0;padding:8px 0;border-top:1px solid #f0ebe3;border-bottom:1px solid #f0ebe3;}' +
+    '.inv-footer-item{font-size:11px;color:var(--text2);}' +
+    '.inv-footer-item strong{color:var(--text);font-weight:600;}' +
+    '.alertas-row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px;}' +
+    '.badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;}' +
+    '.badge-red{background:#FDEAEA;color:#8B1A1A;}' +
+    '.badge-amber{background:#FEF3DC;color:#7A4800;}' +
+    '.alerta-desc{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;background:#f8f4ef;border-radius:6px;padding:8px 10px;}' +
+    '.no-print,.actions{display:none!important;}' +
+    '@media print{body{background:#fff;padding:0;}.section{overflow:visible!important;break-inside:auto;page-break-inside:auto;border-radius:0;}.inv-card{break-inside:avoid;page-break-inside:avoid;}.report-header{border-radius:0;}}' +
+    '</style></head><body>' + contenido + '</body></html>');
+  ventana.document.close();
+  ventana.onload = function() { ventana.focus(); ventana.print(); };
 }
 
 renderHistorial();
