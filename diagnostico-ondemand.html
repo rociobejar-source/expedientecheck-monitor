@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ExpedienteCheck · Diagnóstico Rápido</title>
+<style>
+  :root {
+    --navy: #0B2341; --gold: #D4A62A; --beige: #F4EFE7;
+    --text: #1C1C1C; --text2: #5a5a5a; --border: #e0d9ce; --surface: #ffffff;
+    --tag-red-bg: #FDEAEA; --tag-red: #8B1A1A;
+    --tag-amber-bg: #FEF3DC; --tag-amber: #7A4800;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--beige); color: var(--text); min-height: 100vh; }
+
+  .topbar { background: var(--navy); padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  .topbar-logo { color: var(--gold); font-size: 17px; font-weight: 700; }
+  .topbar-sep { width: 1px; height: 20px; background: rgba(255,255,255,.2); }
+  .topbar-title { color: rgba(255,255,255,.75); font-size: 13px; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  .search-panel { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); padding: 24px; margin-bottom: 24px; }
+  .search-panel h2 { font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+  .search-panel p { font-size: 13px; color: var(--text2); margin-bottom: 16px; line-height: 1.5; }
+  .search-row { display: flex; gap: 10px; }
+  .search-input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; color: var(--text); background: var(--beige); outline: none; transition: border-color .2s; }
+  .search-input:focus { border-color: var(--navy); background: #fff; }
+  .input-sm { max-width: 320px; font-size: 13px; margin-top: 8px; flex: none; }
+  .btn-primary { background: var(--navy); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: opacity .15s; }
+  .btn-primary:hover { opacity: .88; }
+  .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { font-size: 12px; color: var(--text2); margin-top: 8px; }
+  .hint code { background: rgba(11,35,65,.07); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+
+  .loading { text-align: center; padding: 48px 20px; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--navy); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-msg  { font-size: 14px; color: var(--text); font-weight: 500; }
+  .loading-step { font-size: 12px; color: var(--text2); margin-top: 6px; }
+
+  #resultado { display: none; }
+
+  .report-header { background: var(--navy); border-radius: 12px; padding: 22px 24px; margin-bottom: 16px; color: #fff; }
+  .report-muni { font-size: 18px; font-weight: 700; margin-bottom: 4px; line-height: 1.3; }
+  .report-sub  { font-size: 12px; color: rgba(255,255,255,.55); margin-bottom: 16px; }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+  .kpi { background: rgba(255,255,255,.08); border-radius: 8px; padding: 12px 14px; }
+  .kpi-val { font-size: 22px; font-weight: 700; color: #fff; line-height: 1; }
+  .kpi-val.red   { color: #F08080; }
+  .kpi-val.amber { color: #D4A62A; }
+  .kpi-val.green { color: #6FCF97; }
+  .kpi-lbl { font-size: 10px; color: rgba(255,255,255,.5); margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
+
+  .section { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 16px; overflow: hidden; }
+  .section-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .section-head h3 { font-size: 14px; font-weight: 600; color: var(--navy); }
+  .section-head .count { background: var(--navy); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+
+  .inv-card { padding: 14px 18px; border-bottom: 1px solid #f0ebe3; }
+  .inv-card:last-child { border-bottom: none; }
+  .inv-top  { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .inv-nombre { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; flex: 1; }
+  .inv-cui  { font-size: 11px; color: var(--text2); font-family: monospace; background: #f0ebe3; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+  .inv-cui:hover { background: var(--navy); color: #fff; transition: background .15s, color .15s; }
+  .inv-meta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+  .inv-meta-item { font-size: 12px; color: var(--text2); }
+  .inv-meta-item strong { color: var(--text); font-weight: 600; }
+  .alertas-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
+  .badge-red   { background: var(--tag-red-bg);   color: var(--tag-red); }
+  .badge-amber { background: var(--tag-amber-bg); color: var(--tag-amber); }
+  .alerta-desc { font-size: 12px; color: var(--text2); margin-top: 4px; line-height: 1.55; background: #f8f4ef; border-radius: 6px; padding: 8px 10px; }
+
+  .actions { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); padding: 18px; margin-bottom: 16px; }
+  .actions h3 { font-size: 14px; font-weight: 600; color: var(--navy); margin-bottom: 14px; }
+  .wa-row   { display: flex; gap: 10px; align-items: center; }
+  .wa-input { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; }
+  .wa-input:focus { border-color: var(--navy); }
+  .btn-wa  { background: #25D366; color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-wa:hover { opacity: .88; }
+  .btn-pdf { background: var(--beige); color: var(--navy); border: 1px solid var(--border); padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 10px; display: inline-block; }
+  .btn-pdf:hover { background: #ede6db; }
+  .wa-hint { font-size: 12px; color: var(--text2); margin-top: 8px; line-height: 1.5; }
+
+  .error-box { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 16px 18px; color: #7F1D1D; font-size: 13px; line-height: 1.6; margin-bottom: 16px; }
+
+  .historial { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); padding: 16px 18px; margin-top: 24px; }
+  .historial h3 { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .05em; }
+  .hist-item  { font-size: 12px; color: var(--text2); padding: 5px 0; border-bottom: 1px solid #f0ebe3; display: flex; justify-content: space-between; gap: 8px; }
+  .hist-item:last-child { border-bottom: none; }
+  .hist-empty { font-size: 12px; color: var(--text2); font-style: italic; }
+
+  @media print {
+    .topbar, .search-panel, .actions, .historial, .no-print { display: none !important; }
+    body { background: #fff; }
+    .container { padding: 0; max-width: 100%; }
+    .report-header { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    #resultado { display: block !important; }
+    .section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-logo">ExpedienteCheck</span>
+  <div class="topbar-sep"></div>
+  <span class="topbar-title">Diagnóstico Rápido On-Demand</span>
+</div>
+
+<div class="container">
+
+  <div class="search-panel no-print">
+    <h2>Buscar municipalidad</h2>
+    <p>Ingresa el nombre exacto de la unidad ejecutora tal como figura en el MEF. El sistema consulta las APIs del MEF y genera el diagnóstico automáticamente.</p>
+    <div class="search-row">
+      <input id="inputEjecutora" class="search-input" type="text"
+        placeholder="Ej: MUNICIPALIDAD PROVINCIAL DE AREQUIPA"
+        autocomplete="off" spellcheck="false">
+      <button id="btnBuscar" class="btn-primary" onclick="iniciarDiagnostico()">Analizar</button>
+    </div>
+    <input id="inputDepartamento" class="search-input input-sm" type="text"
+      placeholder="Departamento (opcional, ej: LIMA)" autocomplete="off">
+    <p class="hint">Si hay varias municipalidades con nombre similar, agrega el departamento arriba.</p>
+  </div>
+
+  <div id="loading" style="display:none">
+    <div class="loading">
+      <div class="spinner"></div>
+      <div class="loading-msg"  id="loadingMsg">Buscando inversiones...</div>
+      <div class="loading-step" id="loadingStep"></div>
+    </div>
+  </div>
+
+  <div id="errorBox" style="display:none" class="no-print">
+    <div class="error-box" id="errorMsg"></div>
+  </div>
+
+  <div id="resultado"></div>
+
+  <div class="historial no-print">
+    <h3>Diagnósticos generados en este equipo</h3>
+    <div id="historialLista"><span class="hist-empty">Aún no hay diagnósticos generados.</span></div>
+  </div>
+
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────
+const BACKEND     = 'https://api.expedientecheck.com';
+const RESOURCE_ID = '615644aa-ef73-4358-b4e0-0c20931632f3';
+const MONITOR_URL = 'https://monitor.expedientecheck.com';
+const ANO         = new Date().getFullYear().toString();
+const HOY         = new Date();
+
+// ── UTILIDADES ────────────────────────────────────────────────
+const num    = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const fmtS   = v => (!v || v === 0) ? '—' : 'S/ ' + Number(v).toLocaleString('es-PE', {minimumFractionDigits:0, maximumFractionDigits:0});
+const fmtPct = v => v == null ? '—' : Number(v).toFixed(1) + '%';
+
+function parseDate(val) {
+  if (!val) return null;
+  const ts = String(val).match(/\/Date\((\d+)\)\//);
+  if (ts) { const d = new Date(parseInt(ts[1])); return d.getFullYear() > 2000 ? d.toISOString().split('T')[0] : null; }
+  const dm = String(val).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (dm) return `${dm[3]}-${dm[2]}-${dm[1]}`;
+  return null;
+}
+
+function setLoading(msg, step) {
+  document.getElementById('loadingMsg').textContent  = msg;
+  document.getElementById('loadingStep').textContent = step || '';
+}
+
+// ── API: Datos Abiertos MEF → vía Railway ────────────────────
+async function fetchMEFCUIs(ejecutora, departamento) {
+  const deptFilter = departamento ? ` AND "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}'` : '';
+  const sql = `SELECT "PRODUCTO_PROYECTO","MONTO_PIM","MONTO_CERTIFICADO","MONTO_COMPROMETIDO_ANUAL","MONTO_DEVENGADO" FROM "${RESOURCE_ID}" WHERE "EJECUTORA_NOMBRE"='${ejecutora}'${deptFilter} AND "ANO_EJE"='${ANO}' LIMIT 32000`;
+  const resp = await fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`);
+  if (!resp.ok) throw new Error(`Datos Abiertos MEF respondió ${resp.status}`);
+  const json = await resp.json();
+  if (json.error) throw new Error('Error MEF: ' + json.error);
+  return json.records || [];
+}
+
+// ── API: SSI-MEF → vía Railway ───────────────────────────────
+async function proxySSI(endpoint, id) {
+  const URLS = {
+    'f12b': 'https://ofi5.mef.gob.pe/invierteWS/Ssi/traeInfSeguimF12B',
+    'det':  'https://ofi5.mef.gob.pe/invierteWS/Ssi/traeDetInvSSI',
+    'dev':  'https://ofi5.mef.gob.pe/invierteWS/Ssi/traeDevengPIM',
+    'dev2': 'https://ofi5.mef.gob.pe/invierteWS/Ssi/traeDevengSSI',
+  };
+  const url  = URLS[endpoint];
+  const tipo = (endpoint === 'dev' || endpoint === 'dev2') ? 'FINAN' : 'SIAF';
+  const resp = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Origin': 'https://ssi.mef.gob.pe' },
+    body:    'id=' + encodeURIComponent(String(id)) + '&tipo=' + encodeURIComponent(tipo)
+  });
+  if (!resp.ok) return null;
+  return resp.json();
+}
+
+async function fetchSSI(cui) {
+  try {
+    const d1       = await proxySSI('f12b', cui);
+    const base     = Array.isArray(d1) ? d1[0] : d1;
+    const tieneF12B = base && base.NOMBRE_INVERSION;
+
+    let datos = base;
+    if (!tieneF12B) {
+      try {
+        const d2 = await proxySSI('det', cui);
+        datos = Array.isArray(d2) ? d2[0] : d2;
+      } catch(e) {}
+    }
+
+    let pim = null, dev2026 = 0, devAcum = 0;
+    try {
+      const dd   = await proxySSI(tieneF12B ? 'dev' : 'dev2', cui);
+      const rows = Array.isArray(dd) ? dd : (dd ? [dd] : []);
+      pim     = num(rows[0]?.MTO_PIM);
+      dev2026 = rows.reduce((s,r) => s + num(r.DEV_ANIO1), 0);
+      devAcum = rows.reduce((s,r) => s + num(r.MTO_DEVEN), 0);
+    } catch(e) {}
+
+    if (!datos) return null;
+    return {
+      cui:               String(cui),
+      nombre:            datos.NOMBRE_INVERSION || datos.NOMBRE_PROYECTO || null,
+      estado:            datos.DES_ESTADO || datos.ESTADO || null,
+      avance_fisico:     num(datos.PORC_AVANCE_FIS ?? datos.AVAN_FISICO),
+      fecha_fin:         parseDate(datos.FEC_FIN_EJEC ?? datos.FEC_FIN_EJ),
+      costo_actualizado: num(datos.COSTO_ACTUALIZADO),
+      ult_f12b:          tieneF12B ? parseDate(datos.FECHA_ULT_ACT_F12B) : null,
+      pim, dev2026, devAcum,
+    };
+  } catch(e) { return null; }
+}
+
+// ── LÓGICA DE ALERTAS ────────────────────────────────────────
+function evaluarF12B(ult) {
+  const hoy    = new Date();
+  const diaHoy = hoy.getDate();
+  let ultima   = null;
+  if (ult) { const [y,m,d] = String(ult).split('-').map(Number); ultima = new Date(y,m-1,d); }
+  if (ultima) {
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    if (ultima >= inicioMes) return 'verde';
+  }
+  const dias = ultima ? Math.floor((hoy - ultima) / 86400000) : 999;
+  if (dias > 45) return 'rojo';
+  if (diaHoy < 10) return 'verde';
+  return 'amarillo';
+}
+
+function evaluarAlertas(o, mef) {
+  const alertas = [];
+  const pim     = num(o.pim);
+  const dev2026 = num(o.dev2026);
+  const devAcum = num(o.devAcum);
+  const costo   = num(o.costo_actualizado);
+  const fis     = o.avance_fisico != null ? num(o.avance_fisico) : null;
+  const comp    = mef ? num(mef.comprometido) : 0;
+  const cert    = mef ? num(mef.certificado)  : 0;
+
+  const avFin  = (devAcum > 0 && costo > 0) ? (devAcum / costo) * 100 : null;
+  const brecha = (fis != null && avFin != null) ? avFin - fis : null;
+  const fechaFin  = o.fecha_fin ? new Date(o.fecha_fin) : null;
+  const diasFin   = fechaFin ? Math.ceil((fechaFin - HOY) / 86400000) : null;
+  const enEjec    = o.estado && o.estado.toUpperCase().includes('EJEC');
+
+  // 1. SIN_CONTRATO
+  if (pim > 0 && comp === 0 && cert === 0 && dev2026 === 0) {
+    alertas.push({
+      codigo: 'SIN_CONTRATO', nivel: 'rojo',
+      titulo: 'Sin contrato activo',
+      desc: `Tiene ${fmtS(pim)} de presupuesto asignado pero no se detecta movimiento contractual: comprometido, certificado y devengado están en cero. Si no se inicia el proceso de contratación pronto y si es RO, el MEF recupera el presupuesto al cierre del año fiscal en diciembre. Verificar si va a iniciar proceso en SEACE o si la inversión tiene otro problema.`
+    });
+  }
+
+  // 2. F12B_DESACTUALIZADO
+  if (enEjec && fis > 0 && evaluarF12B(o.ult_f12b) === 'rojo') {
+    let ultActStr = '';
+    let diasSinAct = '';
+    if (o.ult_f12b) {
+      const [y,m,d] = String(o.ult_f12b).split('-').map(Number);
+      const ultDate = new Date(y,m-1,d);
+      const dias = Math.floor((HOY - ultDate) / 86400000);
+      ultActStr = ` (última actualización: ${o.ult_f12b})`;
+      diasSinAct = ` Lleva <strong>${dias} días sin actualizar</strong>.`;
+    } else {
+      diasSinAct = ' <strong>No se encontró registro de actualización.</strong>';
+    }
+    alertas.push({
+      codigo: 'F12B_DESACTUALIZADO', nivel: 'rojo',
+      titulo: 'F12B sin actualizar',
+      desc: `La obra está en ejecución con avance físico registrado pero el Formato 12B no se ha actualizado en más de 45 días${ultActStr}.${diasSinAct} La Directiva de Seguimiento del MEF exige actualización mensual hasta su cierre. Contraloría revisa este campo en visitas de campo, un F12B desactualizado es causal directa de observación.`
+    });
+  }
+
+  // 3. BRECHA_FIN_FIS
+  if (brecha !== null && brecha > 20 && fis > 0) {
+    alertas.push({
+      codigo: 'BRECHA_FIN_FIS', nivel: 'rojo',
+      titulo: `Brecha físico-financiero ${brecha.toFixed(0)} pts`,
+      desc: `Se está devengando dinero significativamente más rápido de lo que avanza la obra: avance financiero ${fmtPct(avFin)} vs. avance físico ${fmtPct(fis)} (diferencia: ${brecha.toFixed(0)} puntos). Esto puede indicar paralización encubierta, adelanto de pagos sin respaldo de ejecución, o sobrevalorización de avances. Requiere verificación en campo urgente.`
+    });
+  }
+
+  // 4. PRESUP_INFLADO
+  const pendPim    = pim - dev2026;
+  const pendCierre = costo - devAcum;
+  if (pendPim > 0 && pendCierre > 0 && pendPim > pendCierre * 1.05) {
+    const exceso = fmtS(pendPim - pendCierre);
+    alertas.push({
+      codigo: 'PRESUP_INFLADO', nivel: 'amarillo',
+      titulo: 'Presupuesto inflado',
+      desc: `El PIM pendiente de ejecutar este año (${fmtS(pendPim)}) supera en ${exceso} lo que le falta al proyecto para terminar (${fmtS(pendCierre)}). Hay presupuesto sobreasignado que no tiene respaldo en obra, riesgo de devolución al MEF al cierre del año, necesidad de modificación presupuestal o actualización de costo.`
+    });
+  }
+
+  // 5. VENCE_SIN_AVANCE
+  if (diasFin !== null && diasFin > 0 && diasFin <= 60 && fis !== null && fis < 70 && fis > 0) {
+    alertas.push({
+      codigo: 'VENCE_SIN_AVANCE', nivel: 'amarillo',
+      titulo: `Vence en ${diasFin} días · avance ${fmtPct(fis)}`,
+      desc: `Según los registros, la inversión culmina el ${o.fecha_fin} (en ${diasFin} días) pero el avance físico es de solo ${fmtPct(fis)}, faltando más del 30% para completarse. Sin un cronograma acelerado o una ampliación de plazo formalizada antes del vencimiento, la inversión se detectará como atrasada.`
+    });
+  }
+
+  return alertas;
+}
+
+// ── AGRUPACIÓN MEF ────────────────────────────────────────────
+function agruparMEF(registros) {
+  const map = new Map();
+  for (const r of registros) {
+    const cui = String(r.PRODUCTO_PROYECTO ?? '').trim();
+    if (!cui || cui === '0') continue;
+    if (cui.startsWith('3000') || cui.startsWith('3033') || cui.startsWith('3999')) continue;
+    if (!map.has(cui)) map.set(cui, { pim:0, certificado:0, comprometido:0, devengado:0 });
+    const a = map.get(cui);
+    a.pim          += num(r.MONTO_PIM);
+    a.certificado  += num(r.MONTO_CERTIFICADO);
+    a.comprometido += num(r.MONTO_COMPROMETIDO_ANUAL);
+    a.devengado    += num(r.MONTO_DEVENGADO);
+  }
+  for (const [cui, m] of map) { if (m.pim <= 0) map.delete(cui); }
+  return map;
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function renderReporte(ejecutora, mefMap, inversiones) {
+  const total = inversiones.length;
+  const conAl = inversiones.filter(i => i.alertas.length > 0);
+  const rojas = inversiones.filter(i => i.alertas.some(a => a.nivel === 'rojo'));
+  const amars = inversiones.filter(i => !i.alertas.some(a => a.nivel === 'rojo') && i.alertas.some(a => a.nivel === 'amarillo'));
+
+  let pimTotal = 0, certTotal = 0, compTotal = 0, devTotal = 0;
+  for (const [, m] of mefMap) {
+    pimTotal  += m.pim;
+    certTotal += m.certificado;
+    compTotal += m.comprometido;
+    devTotal  += m.devengado;
+  }
+  const pctDev = pimTotal > 0 ? (devTotal / pimTotal * 100).toFixed(1) : null;
+  const saldoPim = pimTotal - devTotal;
+  const saldoFinanciar = inversiones.reduce((s, inv) => {
+    const saldo = (inv.costo_actualizado || 0) - (inv.devAcum || 0);
+    return s + (saldo > 0 ? saldo : 0);
+  }, 0);
+
+  const ordenadas = [...inversiones].sort((a, b) => {
+    const rA = a.alertas.filter(x => x.nivel==='rojo').length;
+    const rB = b.alertas.filter(x => x.nivel==='rojo').length;
+    if (rB !== rA) return rB - rA;
+    if (b.alertas.length !== a.alertas.length) return b.alertas.length - a.alertas.length;
+    return (b.mefData?.pim||0) - (a.mefData?.pim||0);
+  });
+  const topAlertas = ordenadas.filter(i => i.alertas.length > 0).slice(0, 10);
+
+  const fechaStr = HOY.toLocaleDateString('es-PE', { day:'numeric', month:'long', year:'numeric' });
+
+  let html = `
+  <div class="report-header">
+    <div class="report-muni">${ejecutora}</div>
+    <div class="report-sub">Diagnóstico generado el ${fechaStr} · Fuente: MEF SSI + Datos Abiertos ${ANO}</div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-val">${total}</div><div class="kpi-lbl">Inversiones activas</div></div>
+      <div class="kpi"><div class="kpi-val" style="font-size:15px">${fmtS(pimTotal)}</div><div class="kpi-lbl">PIM ${ANO}</div></div>
+      <div class="kpi"><div class="kpi-val" style="font-size:15px">${fmtS(compTotal)}</div><div class="kpi-lbl">Comprometido</div></div>
+      <div class="kpi"><div class="kpi-val" style="font-size:15px">${fmtS(devTotal)}${pctDev ? `<span style="font-size:11px;font-weight:400;margin-left:5px;color:rgba(255,255,255,.6)">${pctDev}%</span>` : ''}</div><div class="kpi-lbl">Devengado ${ANO}</div></div>
+    </div>
+    <div class="kpi-row" style="margin-top:8px">
+      <div class="kpi"><div class="kpi-val red">${rojas.length}</div><div class="kpi-lbl">Alertas rojas</div></div>
+      <div class="kpi"><div class="kpi-val amber">${amars.length}</div><div class="kpi-lbl">Alertas amarillas</div></div>
+      <div class="kpi"><div class="kpi-val green">${total - conAl.length}</div><div class="kpi-lbl">Sin alerta</div></div>
+      <div class="kpi"><div class="kpi-val" style="font-size:15px;color:#F08080">${fmtS(saldoPim)}</div><div class="kpi-lbl">Saldo PIM</div></div>
+      <div class="kpi"><div class="kpi-val" style="font-size:15px;color:#D4A62A">${saldoFinanciar > 0 ? fmtS(saldoFinanciar) : '—'}</div><div class="kpi-lbl">Saldo por financiar</div></div>
+    </div>
+  </div>`;
+
+  if (topAlertas.length === 0) {
+    html += `<div class="section">
+      <div class="section-head"><h3>Sin alertas detectadas con los datos disponibles</h3></div>
+      <div style="padding:20px 18px;font-size:13px;color:var(--text2)">
+        No se encontraron las condiciones de alerta en las inversiones activas.
+      </div></div>`;
+  } else {
+    html += `<div class="section">
+      <div class="section-head">
+        <h3>Inversiones con alertas</h3>
+        <span class="count">${topAlertas.length === conAl.length ? `${conAl.length} en total` : `Top ${topAlertas.length} de ${conAl.length} con alertas`}</span>
+      </div>`;
+    for (const inv of topAlertas) {
+      const mef = inv.mefData || {};
+      const ssiUrl = `https://ofi5.mef.gob.pe/invierte/transacciones/seguimientoInversion.jsf?cui=${inv.cui}`;
+      html += `<div class="inv-card">
+        <div class="inv-top">
+          <div class="inv-nombre">${inv.nombre || 'Sin nombre en SSI'}</div>
+          <a href="${ssiUrl}" target="_blank" class="inv-cui" title="Ver en SSI-MEF" style="text-decoration:none;cursor:pointer">CUI ${inv.cui} ↗</a>
+        </div>
+        <div class="inv-meta">
+          <div class="inv-meta-item">PIM: <strong>${fmtS(mef.pim)}</strong></div>
+          <div class="inv-meta-item">Comprometido: <strong>${fmtS(mef.comprometido)}</strong></div>
+          <div class="inv-meta-item">Devengado: <strong>${fmtS(inv.dev2026)}</strong></div>
+          <div class="inv-meta-item">Avance físico: <strong>${fmtPct(inv.avance_fisico)}</strong></div>
+          ${inv.fecha_fin ? `<div class="inv-meta-item">Vence: <strong>${inv.fecha_fin}</strong></div>` : ''}
+          ${inv.ult_f12b  ? `<div class="inv-meta-item">Último F12B: <strong>${inv.ult_f12b}</strong></div>` : ''}
+          ${inv.estado    ? `<div class="inv-meta-item">Estado: <strong>${inv.estado}</strong></div>` : ''}
+        </div>
+        <div class="alertas-row">
+          ${inv.alertas.map(a=>`<span class="badge badge-${a.nivel==='rojo'?'red':'amber'}">${a.titulo}</span>`).join('')}
+        </div>
+        ${inv.alertas.map(a=>`<div class="alerta-desc">${a.desc}</div>`).join('')}
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `
+  <div class="actions no-print">
+    <h3>Compartir diagnóstico</h3>
+    <div class="wa-row">
+      <input id="waNumero" class="wa-input" type="tel"
+        placeholder="Número WhatsApp con código país (ej: 51999888777)" maxlength="15">
+      <button class="btn-wa"
+        onclick="enviarWhatsApp('${ejecutora.replace(/'/g,"\\'")}',${rojas.length},${amars.length},${total},'${fmtS(pimTotal).replace(/'/g,"\\'")}','${fmtS(devTotal).replace(/'/g,"\\'")}','${pctDev||'—'}')">
+        Abrir WhatsApp
+      </button>
+    </div>
+    <p class="wa-hint">Se abre WhatsApp Web con el mensaje listo. Tú eliges a quién enviarlo.</p>
+    <button class="btn-pdf" onclick="window.print()">Imprimir / Guardar PDF</button>
+  </div>`;
+
+  document.getElementById('resultado').innerHTML = html;
+  document.getElementById('resultado').style.display = 'block';
+}
+
+// ── WHATSAPP ──────────────────────────────────────────────────
+function enviarWhatsApp(ejecutora, rojas, amars, total, pimStr, devStr, pctDev) {
+  const numero = document.getElementById('waNumero').value.replace(/\D/g,'');
+  if (!numero || numero.length < 10) { alert('Ingresa un número válido con código de país (ej: 51999888777)'); return; }
+  const fecha = HOY.toLocaleDateString('es-PE', { day:'numeric', month:'long', year:'numeric' });
+  const lineas = [];
+  if (rojas > 0) lineas.push(`🔴 ${rojas} alerta${rojas>1?'s':''} crítica${rojas>1?'s':''} que requieren atención inmediata`);
+  if (amars > 0) lineas.push(`🟡 ${amars} alerta${amars>1?'s':''} de seguimiento antes de diciembre`);
+  if (!lineas.length) lineas.push('✅ Sin alertas críticas detectadas en este diagnóstico');
+  const msg = `Hola, le comparto el diagnóstico de inversiones de *${ejecutora}* generado el ${fecha} con ExpedienteCheck.\n\n📊 *Resumen ejecutivo:*\n• ${total} inversiones activas · PIM ${ANO}: ${pimStr}\n• Devengado: ${devStr} (${pctDev}% del PIM)\n${lineas.join('\n')}\n\nCon esta plataforma, usted recibiría alertas semanales automáticas — antes de que llegue Contraloría o tenga problemas con el MEF.\n\n👉 Ver el monitor: ${MONITOR_URL}\n(Con sus datos, el sistema mostraría el detalle por cada obra de su municipalidad)\n\n¿Le gustaría activar el piloto gratuito?`;
+  window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// ── HISTORIAL ────────────────────────────────────────────────
+function guardarHistorial(ejecutora, total, alertas) {
+  const hist = JSON.parse(localStorage.getItem('ec_historial') || '[]');
+  hist.unshift({ ejecutora, fecha: HOY.toISOString(), total, alertas });
+  localStorage.setItem('ec_historial', JSON.stringify(hist.slice(0,20)));
+  renderHistorial();
+}
+
+function renderHistorial() {
+  const hist = JSON.parse(localStorage.getItem('ec_historial') || '[]');
+  const el   = document.getElementById('historialLista');
+  if (!hist.length) { el.innerHTML = '<span class="hist-empty">Aún no hay diagnósticos generados.</span>'; return; }
+  el.innerHTML = hist.map(h => {
+    const f = new Date(h.fecha).toLocaleDateString('es-PE', { day:'numeric', month:'short', year:'numeric' });
+    return `<div class="hist-item"><span>${h.ejecutora}</span><span>${h.total} inv · ${h.alertas} alertas · ${f}</span></div>`;
+  }).join('');
+}
+
+async function logBackend(ejecutora, total, alertas) {
+  try {
+    await fetch(`${BACKEND}/api/diagnostico-log`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ ejecutora, total_inversiones: total, total_alertas: alertas })
+    });
+  } catch(e) {}
+}
+
+// ── FLUJO PRINCIPAL ───────────────────────────────────────────
+async function iniciarDiagnostico() {
+  const ejecutora    = document.getElementById('inputEjecutora').value.trim().toUpperCase();
+  const departamento = document.getElementById('inputDepartamento').value.trim().toUpperCase() || null;
+
+  if (!ejecutora || ejecutora.length < 5) { alert('Ingresa el nombre de la municipalidad ejecutora.'); return; }
+
+  document.getElementById('errorBox').style.display  = 'none';
+  document.getElementById('resultado').style.display = 'none';
+  document.getElementById('resultado').innerHTML     = '';
+  document.getElementById('loading').style.display   = 'block';
+  document.getElementById('btnBuscar').disabled      = true;
+
+  try {
+    setLoading('Buscando inversiones en Datos Abiertos MEF...', `Ejecutora: ${ejecutora}`);
+    const registros = await fetchMEFCUIs(ejecutora, departamento);
+
+    if (!registros || registros.length === 0) {
+      throw new Error(
+        `No se encontraron inversiones para "${ejecutora}"${departamento ? ` en ${departamento}` : ''}.\n\n` +
+        `Verifica que el nombre sea exactamente como figura en el MEF (todo en mayúsculas, sin tildes).`
+      );
+    }
+
+    const mefMap = agruparMEF(registros);
+    const cuis   = Array.from(mefMap.keys());
+
+    setLoading(`${cuis.length} inversiones encontradas — consultando SSI-MEF...`, 'Obteniendo F12B y estado de ejecución');
+
+    const inversiones = [];
+    const LOTE = 6;
+
+    for (let i = 0; i < cuis.length; i += LOTE) {
+      const lote = cuis.slice(i, i + LOTE);
+      setLoading(
+        `Consultando SSI-MEF... ${Math.min(i+LOTE, cuis.length)} / ${cuis.length}`,
+        'Procesando F12B, devengado y avance físico'
+      );
+      const resultados = await Promise.all(lote.map(cui => fetchSSI(cui)));
+      for (let j = 0; j < lote.length; j++) {
+        const ssi = resultados[j];
+        const mef = mefMap.get(lote[j]);
+        if (!ssi) continue;
+        if (ssi.estado && ssi.estado.toUpperCase().includes('NO REGISTRADO') && (ssi.costo_actualizado||0)===0) continue;
+        inversiones.push({ ...ssi, mefData: mef, alertas: evaluarAlertas(ssi, mef) });
+      }
+      if (i + LOTE < cuis.length) await new Promise(r => setTimeout(r, 500));
+    }
+
+    document.getElementById('loading').style.display = 'none';
+    const totalAlertas = inversiones.reduce((s,i) => s + i.alertas.length, 0);
+    renderReporte(ejecutora, mefMap, inversiones);
+    guardarHistorial(ejecutora, inversiones.length, totalAlertas);
+    logBackend(ejecutora, inversiones.length, totalAlertas);
+
+  } catch(e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('errorBox').style.display = 'block';
+    document.getElementById('errorMsg').innerHTML =
+      `<strong>Error al generar el diagnóstico:</strong><br><br>${e.message.replace(/\n/g,'<br>')}`;
+  } finally {
+    document.getElementById('btnBuscar').disabled = false;
+  }
+}
+
+document.getElementById('inputEjecutora').addEventListener('keydown', e => {
+  if (e.key === 'Enter') iniciarDiagnostico();
+});
+
+renderHistorial();
+</script>
+</body>
+</html>
