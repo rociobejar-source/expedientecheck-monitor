@@ -58,16 +58,35 @@
   .section-head h3 { font-size: 14px; font-weight: 600; color: var(--navy); }
   .section-head .count { background: var(--navy); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
 
-  .inv-card { padding: 14px 18px; border-bottom: 1px solid #f0ebe3; }
+  .inv-card { padding: 16px 18px; border-bottom: 1px solid #f0ebe3; }
   .inv-card:last-child { border-bottom: none; }
-  .inv-top  { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .inv-top  { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
   .inv-nombre { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; flex: 1; }
   .inv-cui  { font-size: 11px; color: var(--text2); font-family: monospace; background: #f0ebe3; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
   .inv-cui:hover { background: var(--navy); color: #fff; transition: background .15s, color .15s; }
-  .inv-meta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
-  .inv-meta-item { font-size: 12px; color: var(--text2); }
-  .inv-meta-item strong { color: var(--text); font-weight: 600; }
-  .alertas-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+
+  .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
+  @media (max-width: 600px) { .inv-grid { grid-template-columns: repeat(2, 1fr); } }
+  .inv-kpi { background: #f8f4ef; border-radius: 6px; padding: 8px 10px; }
+  .inv-kpi-lbl { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+  .inv-kpi-val { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .inv-kpi-val.muted { color: var(--text2); font-weight: 500; }
+  .inv-kpi-sub { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+  .inv-prog { margin: 10px 0 8px; display: flex; flex-direction: column; gap: 5px; }
+  .inv-prog-row { display: flex; align-items: center; gap: 8px; }
+  .inv-prog-lbl { font-size: 10px; color: var(--text2); width: 130px; flex-shrink: 0; }
+  .inv-prog-bar { flex: 1; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .inv-prog-fill { height: 100%; border-radius: 99px; }
+  .inv-prog-fill.fisico     { background: #3b82f6; }
+  .inv-prog-fill.financiero { background: #1D8F6A; }
+  .inv-prog-pct { font-size: 11px; font-weight: 600; color: var(--text); width: 38px; text-align: right; flex-shrink: 0; }
+
+  .inv-footer { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0; padding: 8px 0; border-top: 1px solid #f0ebe3; border-bottom: 1px solid #f0ebe3; }
+  .inv-footer-item { font-size: 11px; color: var(--text2); }
+  .inv-footer-item strong { color: var(--text); font-weight: 600; }
+
+  .alertas-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
   .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
   .badge-red   { background: var(--tag-red-bg);   color: var(--tag-red); }
   .badge-amber { background: var(--tag-amber-bg); color: var(--tag-amber); }
@@ -450,22 +469,54 @@ function renderReporte(ejecutora, mefMap, inversiones) {
     for (const inv of topAlertas) {
       const mef = inv.mefData || {};
       const ssiUrl = `https://ofi5.mef.gob.pe/invierte/transacciones/seguimientoInversion.jsf?cui=${inv.cui}`;
-      const avFin = (inv.devAcum > 0 && inv.costo_actualizado > 0) ? (inv.devAcum / inv.costo_actualizado * 100).toFixed(1) : null;
+      const devAcum = inv.devAcum || 0;
+      const costo   = inv.costo_actualizado || 0;
+      const dev2026 = inv.dev2026 || 0;
+      const pim     = mef.pim || 0;
+      const avFin   = (devAcum > 0 && costo > 0) ? (devAcum / costo * 100) : null;
+      const pendCulm = costo > 0 ? Math.max(0, costo - devAcum) : null;
+      const saldoPimAno = pim - dev2026;
+      const pendFin  = costo > 0 ? Math.max(0, costo - (devAcum + saldoPimAno)) : null;
+
       html += `<div class="inv-card">
         <div class="inv-top">
           <div class="inv-nombre">${inv.nombre || 'Sin nombre en SSI'}</div>
           <a href="${ssiUrl}" target="_blank" class="inv-cui" title="Ver en SSI-MEF" style="text-decoration:none;cursor:pointer">CUI ${inv.cui} ↗</a>
         </div>
-        <div class="inv-meta">
-          <div class="inv-meta-item">PIM: <strong>${fmtS(mef.pim)}</strong></div>
-          <div class="inv-meta-item">Comprometido: <strong>${fmtS(mef.comprometido)}</strong></div>
-          <div class="inv-meta-item">Devengado ${ANO}: <strong>${fmtS(inv.dev2026)}</strong></div>
-          <div class="inv-meta-item">Av. físico acum.: <strong>${fmtPct(inv.avance_fisico)}</strong></div>
-          ${avFin !== null ? `<div class="inv-meta-item">Av. financiero acum.: <strong>${avFin}%</strong></div>` : ''}
-          ${inv.fecha_fin ? `<div class="inv-meta-item">Fecha de culminación registrada: <strong>${inv.fecha_fin}</strong></div>` : ''}
-          ${inv.ult_f12b  ? `<div class="inv-meta-item">Último F12B: <strong>${inv.ult_f12b}</strong></div>` : ''}
-          ${inv.estado    ? `<div class="inv-meta-item">Estado: <strong>${inv.estado}</strong></div>` : ''}
+
+        <div class="inv-grid">
+          <div class="inv-kpi"><div class="inv-kpi-lbl">PIM ${ANO}</div><div class="inv-kpi-val">${fmtS(pim)}</div></div>
+          <div class="inv-kpi"><div class="inv-kpi-lbl">Certificado</div><div class="inv-kpi-val">${fmtS(mef.certificado)}</div></div>
+          <div class="inv-kpi"><div class="inv-kpi-lbl">Comprometido</div><div class="inv-kpi-val">${fmtS(mef.comprometido)}</div></div>
+          <div class="inv-kpi"><div class="inv-kpi-lbl">Devengado ${ANO}</div><div class="inv-kpi-val">${fmtS(dev2026)}</div></div>
         </div>
+
+        <div class="inv-grid">
+          <div class="inv-kpi"><div class="inv-kpi-lbl">Costo actualizado</div><div class="inv-kpi-val">${costo > 0 ? fmtS(costo) : '—'}</div></div>
+          <div class="inv-kpi"><div class="inv-kpi-lbl">Dev. acumulado</div><div class="inv-kpi-val">${devAcum > 0 ? fmtS(devAcum) : '—'}${avFin !== null ? `<span style="font-size:10px;color:var(--text2);font-weight:400;margin-left:4px">${avFin.toFixed(1)}%</span>` : ''}</div></div>
+          <div class="inv-kpi"><div class="inv-kpi-lbl">Pend. culminar</div><div class="inv-kpi-val ${pendCulm > 0 ? '' : 'muted'}">${pendCulm !== null ? fmtS(pendCulm) : '—'}</div></div>
+          <div class="inv-kpi"><div class="inv-kpi-lbl">Pend. financiar</div><div class="inv-kpi-val ${pendFin > 0 ? '' : 'muted'}">${pendFin !== null && pendFin > 0 ? fmtS(pendFin) : '—'}</div></div>
+        </div>
+
+        <div class="inv-prog">
+          <div class="inv-prog-row">
+            <span class="inv-prog-lbl">Av. físico acum.</span>
+            <div class="inv-prog-bar"><div class="inv-prog-fill fisico" style="width:${Math.min(inv.avance_fisico||0,100)}%"></div></div>
+            <span class="inv-prog-pct">${fmtPct(inv.avance_fisico)}</span>
+          </div>
+          ${avFin !== null ? `<div class="inv-prog-row">
+            <span class="inv-prog-lbl">Av. financiero acum.</span>
+            <div class="inv-prog-bar"><div class="inv-prog-fill financiero" style="width:${Math.min(avFin,100)}%"></div></div>
+            <span class="inv-prog-pct">${avFin.toFixed(1)}%</span>
+          </div>` : ''}
+        </div>
+
+        <div class="inv-footer">
+          ${inv.fecha_fin ? `<div class="inv-footer-item">Culminación registrada: <strong>${inv.fecha_fin}</strong></div>` : ''}
+          ${inv.ult_f12b  ? `<div class="inv-footer-item">Último F12B: <strong>${inv.ult_f12b}</strong></div>` : ''}
+          ${inv.estado    ? `<div class="inv-footer-item">Estado: <strong>${inv.estado}</strong></div>` : ''}
+        </div>
+
         <div class="alertas-row">
           ${inv.alertas.map(a=>`<span class="badge badge-${a.nivel==='rojo'?'red':'amber'}">${a.titulo}</span>`).join('')}
         </div>
