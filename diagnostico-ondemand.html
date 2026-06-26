@@ -112,39 +112,88 @@
   .hist-empty { font-size: 12px; color: var(--text2); font-style: italic; }
 
   @media print {
-    .topbar, .search-panel, .actions, .historial, .no-print { display: none !important; }
-    body { background: #fff; font-size: 11px; }
-    .container { padding: 0; max-width: 100%; }
-    .report-header { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 12px 16px; margin-bottom: 6px; }
+    /* Ocultar todo excepto el reporte */
+    .topbar, .search-panel, .actions, .historial,
+    .no-print, #loading, #errorBox { display: none !important; }
+
+    /* Reset completo del body para print */
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      min-height: 0 !important;
+      height: auto !important;
+      font-size: 11px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* El container no ocupa espacio extra */
+    .container {
+      padding: 0 !important;
+      margin: 0 !important;
+      max-width: 100% !important;
+    }
+
+    /* El resultado visible desde el inicio */
+    #resultado {
+      display: block !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    /* Header del reporte */
+    .report-header {
+      border-radius: 0;
+      padding: 12px 16px;
+      margin-bottom: 6px;
+    }
     .report-muni { font-size: 14px; margin-bottom: 2px; }
-    .report-sub { font-size: 9px; margin-bottom: 8px; }
+    .report-sub  { font-size: 9px; margin-bottom: 8px; }
     .kpi-row { gap: 4px; }
     .kpi { padding: 6px 8px; }
     .kpi-val { font-size: 14px !important; }
     .kpi-lbl { font-size: 8px; margin-top: 2px; }
-    #resultado { display: block !important; }
-    .section { margin-bottom: 6px; border-radius: 0; overflow: visible !important; break-inside: auto; }
-    .section-head { padding: 6px 12px; break-inside: auto; }
+
+    /* Secciones: flujo libre entre páginas */
+    .section {
+      margin-bottom: 6px;
+      border-radius: 0;
+      overflow: visible !important;
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+    .section-head {
+      padding: 6px 12px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
     .section-head h3 { font-size: 12px; }
-    .inv-card { break-inside: avoid; page-break-inside: avoid; padding: 8px 12px; }
-    .inv-nombre { font-size: 10px; }
-    .inv-cui { font-size: 9px; }
-    .inv-grid { gap: 4px; margin-bottom: 4px; }
-    .inv-kpi { padding: 4px 6px; }
+
+    /* Cada tarjeta no se parte en dos */
+    .inv-card {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      padding: 8px 12px;
+    }
+
+    .inv-nombre  { font-size: 10px; }
+    .inv-cui     { font-size: 9px; }
+    .inv-grid    { gap: 4px; margin-bottom: 4px; }
+    .inv-kpi     { padding: 4px 6px; }
     .inv-kpi-lbl { font-size: 8px; }
     .inv-kpi-val { font-size: 10px; }
-    .inv-prog { margin: 4px 0; gap: 3px; }
+    .inv-prog    { margin: 4px 0; gap: 3px; }
     .inv-prog-lbl { font-size: 9px; width: 110px; }
     .inv-prog-bar { height: 4px; }
     .inv-prog-pct { font-size: 9px; }
-    .inv-footer { padding: 4px 0; margin: 4px 0; gap: 10px; }
+    .inv-footer  { padding: 4px 0; margin: 4px 0; gap: 10px; }
     .inv-footer-item { font-size: 9px; }
     .alerta-desc { font-size: 9px; padding: 4px 7px; margin-top: 2px; }
-    .badge { font-size: 8px; padding: 2px 5px; }
+    .badge       { font-size: 8px; padding: 2px 5px; }
     .alertas-row { gap: 4px; margin: 4px 0 2px; }
   }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -562,7 +611,7 @@ function renderReporte(ejecutora, mefMap, inversiones) {
       </button>
     </div>
     <p class="wa-hint">Se abre WhatsApp Web con el mensaje listo. Tú eliges a quién enviarlo.</p>
-    <button class="btn-pdf" onclick="generarPDF()">⬇ Descargar PDF</button>
+    <button class="btn-pdf" onclick="imprimirReporte()">⬇ Guardar PDF</button>
   </div>`;
 
   document.getElementById('resultado').innerHTML = html;
@@ -679,50 +728,14 @@ document.getElementById('inputEjecutora').addEventListener('keydown', e => {
 });
 
 // ── GENERAR PDF ───────────────────────────────────────────────
-function generarPDF() {
-  const ejecutora = document.querySelector('.report-muni')?.textContent || 'diagnostico';
-  const fecha = new Date().toISOString().split('T')[0];
-  const nombre = `ExpedienteCheck_${ejecutora.replace(/\s+/g,'_').substring(0,40)}_${fecha}.pdf`;
-
-  // Clonar solo el contenido del reporte en un wrapper limpio
-  const contenido = document.getElementById('resultado').innerHTML;
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'width:794px;padding:16px;background:#F4EFE7;font-family:Segoe UI,system-ui,sans-serif;font-size:12px;color:#1C1C1C;';
-  wrapper.innerHTML = contenido;
-
-  // Ocultar elementos no-print dentro del clon
-  wrapper.querySelectorAll('.no-print, .actions').forEach(el => el.style.display = 'none');
-
-  // Forzar overflow visible en .section para que no bloquee paginacion
-  wrapper.querySelectorAll('.section').forEach(el => {
-    el.style.overflow = 'visible';
-    el.style.borderRadius = '0';
-    el.style.marginBottom = '8px';
-  });
-
-  const opt = {
-    margin:      [10, 10, 10, 10],
-    filename:    nombre,
-    image:       { type: 'jpeg', quality: 0.97 },
-    html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#F4EFE7', windowWidth: 834 },
-    jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    pagebreak:   { mode: ['avoid-all'], avoid: '.inv-card, .report-header, .section-head' }
-  };
-
-  const btn = document.querySelector('.btn-pdf');
-  btn.textContent = 'Generando PDF...';
-  btn.disabled = true;
-
-  html2pdf().set(opt).from(wrapper).save().then(() => {
-    btn.textContent = '⬇ Descargar PDF';
-    btn.disabled = false;
-  }).catch(() => {
-    btn.textContent = '⬇ Descargar PDF';
-    btn.disabled = false;
-  });
+function imprimirReporte() {
+  // Mostrar #resultado temporalmente si estuviera oculto
+  const res = document.getElementById('resultado');
+  const wasHidden = res.style.display === 'none';
+  if (wasHidden) res.style.display = 'block';
+  window.print();
+  if (wasHidden) res.style.display = 'none';
 }
 
 renderHistorial();
 </script>
-</body>
-</html>
