@@ -524,44 +524,42 @@ function agruparMEF(registros) {
 // ── RANKING ───────────────────────────────────────────────────
 async function fetchRanking(ejecutora, departamento, provincia) {
   try {
-    const sqlDept = `SELECT "EJECUTORA_NOMBRE","MONTO_PIM","MONTO_DEVENGADO" FROM "${RESOURCE_ID}" WHERE "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}' AND "ANO_EJE"='${ANO}' LIMIT 32000`;
-    const sqlNac  = `SELECT "EJECUTORA_NOMBRE","MONTO_PIM","MONTO_DEVENGADO","TIPO_GOBIERNO_NOMBRE" FROM "${RESOURCE_ID}" WHERE "TIPO_GOBIERNO_NOMBRE"='GOBIERNOS LOCALES' AND "ANO_EJE"='${ANO}' LIMIT 32000`;
+    // GROUP BY en la query — un registro por ejecutora, evita filas duplicadas y queries pesadas
+    const sqlDept = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID}" WHERE "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}' AND "ANO_EJE"='${ANO}' GROUP BY "EJECUTORA_NOMBRE"`;
+    const sqlNac  = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID}" WHERE "TIPO_GOBIERNO_NOMBRE"='GOBIERNOS LOCALES' AND "ANO_EJE"='${ANO}' AND "EJECUTORA_NOMBRE" ILIKE '%PROVINCIAL%' GROUP BY "EJECUTORA_NOMBRE"`;
+    const withTimeout = (p, ms) => Promise.race([p, new Promise((_,r) => setTimeout(() => r(new Error('timeout')), ms))]);
     const [rDept, rNac] = await Promise.all([
-      fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlDept)}`).then(r=>r.json()),
-      fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlNac)}`).then(r=>r.json()),
+      withTimeout(fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlDept)}`).then(r=>r.json()), 9000).catch(()=>({records:[]})),
+      withTimeout(fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlNac)}`).then(r=>r.json()),  9000).catch(()=>({records:[]})),
     ]);
-    function agrupar(registros) {
-      const map = new Map();
-      for (const r of (registros.records||[])) {
-        const k = String(r.EJECUTORA_NOMBRE||'').trim();
-        if (!k) continue;
-        if (!map.has(k)) map.set(k, {pim:0, dev:0});
-        map.get(k).pim += num(r.MONTO_PIM);
-        map.get(k).dev += num(r.MONTO_DEVENGADO);
-      }
-      return map;
+    function toList(records) {
+      return (records||[])
+        .map(r => ({ nombre: String(r.EJECUTORA_NOMBRE||'').trim(), pim: num(r.PIM_TOTAL), dev: num(r.DEV_TOTAL) }))
+        .filter(r => r.nombre && r.pim > 0)
+        .map(r => ({ ...r, pct: r.dev / r.pim * 100 }))
+        .sort((a,b) => b.pct - a.pct);
     }
-    function calcPct(m) { return m.pim > 0 ? (m.dev / m.pim * 100) : 0; }
-    const mapDept = agrupar(rDept);
-    const mapNac  = agrupar(rNac);
-    const pctEj = calcPct(mapDept.get(ejecutora) || {pim:0,dev:0});
-    // Ranking departamental (todas las munis del dpto)
-    const listDept = [...mapDept.entries()].filter(([,v])=>v.pim>0).map(([,v])=>calcPct(v)).sort((a,b)=>b-a);
-    const posDept  = listDept.findIndex(p=>p<=pctEj+0.01)+1 || listDept.length;
-    const promDept = listDept.length ? listDept.reduce((s,v)=>s+v,0)/listDept.length : 0;
-    // Ranking nacional solo provinciales (MUNICIPALIDAD PROVINCIAL en nombre)
-    const listNacProv = [...mapNac.entries()].filter(([k,v])=>v.pim>0 && k.includes('PROVINCIAL')).map(([,v])=>calcPct(v)).sort((a,b)=>b-a);
-    const posNac  = listNacProv.findIndex(p=>p<=pctEj+0.01)+1 || listNacProv.length;
-    const promNac = listNacProv.length ? listNacProv.reduce((s,v)=>s+v,0)/listNacProv.length : 0;
-    // Ranking provincial — filtra por nombre de provincia ingresado por el usuario
-    const listProv = [...mapDept.entries()].filter(([k,v])=>v.pim>0 && k.includes(provincia)).map(([,v])=>calcPct(v)).sort((a,b)=>b-a);
-    const posProv  = listProv.findIndex(p=>p<=pctEj+0.01)+1 || listProv.length;
-    const promProv = listProv.length ? listProv.reduce((s,v)=>s+v,0)/listProv.length : 0;
+    const listDept = toList(rDept.records);
+    const listNac  = toList(rNac.records);
+    const propiaIdx = listDept.findIndex(r => r.nombre === ejecutora);
+    const pctEj = propiaIdx >= 0 ? listDept[propiaIdx].pct : 0;
+    // Departamental
+    const posDept  = propiaIdx >= 0 ? propiaIdx + 1 : null;
+    const promDept = listDept.length ? listDept.reduce((s,r)=>s+r.pct,0)/listDept.length : 0;
+    // Provincial — munis del dpto cuyo nombre contiene la provincia
+    const listProv   = listDept.filter(r => r.nombre.includes(provincia));
+    const provIdx    = listProv.findIndex(r => r.nombre === ejecutora);
+    const posProv    = provIdx >= 0 ? provIdx + 1 : null;
+    const promProv   = listProv.length ? listProv.reduce((s,r)=>s+r.pct,0)/listProv.length : 0;
+    // Nacional provinciales
+    const nacIdx  = listNac.findIndex(r => r.nombre === ejecutora);
+    const posNac  = nacIdx >= 0 ? nacIdx + 1 : null;
+    const promNac = listNac.length ? listNac.reduce((s,r)=>s+r.pct,0)/listNac.length : 0;
     return {
       pctEj: pctEj.toFixed(1),
-      prov:  { pos: posProv, total: listProv.length,  prom: promProv.toFixed(1) },
-      dept:  { pos: posDept, total: listDept.length,  prom: promDept.toFixed(1) },
-      nac:   { pos: posNac,  total: listNacProv.length, prom: promNac.toFixed(1) },
+      prov:  { pos: posProv, total: listProv.length, prom: promProv.toFixed(1) },
+      dept:  { pos: posDept, total: listDept.length, prom: promDept.toFixed(1) },
+      nac:   { pos: posNac,  total: listNac.length,  prom: promNac.toFixed(1)  },
     };
   } catch(e) { return null; }
 }
