@@ -143,8 +143,6 @@
     .badge { font-size: 8px; padding: 2px 5px; }
     .alertas-row { gap: 4px; margin: 4px 0 2px; }
   }
-  /* ── PDF download button ── */
-  .btn-pdf-loading { opacity: .6; cursor: not-allowed; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
@@ -564,7 +562,7 @@ function renderReporte(ejecutora, mefMap, inversiones) {
       </button>
     </div>
     <p class="wa-hint">Se abre WhatsApp Web con el mensaje listo. Tú eliges a quién enviarlo.</p>
-    <button class="btn-pdf" id="btnPdf" onclick="descargarPDF()">⬇ Descargar PDF</button>
+    <button class="btn-pdf" onclick="generarPDF()">⬇ Descargar PDF</button>
   </div>`;
 
   document.getElementById('resultado').innerHTML = html;
@@ -676,77 +674,38 @@ async function iniciarDiagnostico() {
   }
 }
 
-// ── DESCARGAR PDF ─────────────────────────────────────────────
-function descargarPDF() {
-  const btn = document.getElementById('btnPdf');
-  btn.textContent = 'Generando PDF...';
-  btn.classList.add('btn-pdf-loading');
-  btn.disabled = true;
-
-  // Nombre del archivo basado en la municipalidad
-  const ejecutora = document.getElementById('inputEjecutora').value.trim() || 'diagnostico';
-  const fecha     = new Date().toISOString().split('T')[0];
-  const nombre    = `ExpedienteCheck_${ejecutora.replace(/[^A-Z0-9]/gi,'_').substring(0,40)}_${fecha}.pdf`;
-
-  // Elemento a capturar (solo el resultado, no topbar ni search)
-  const elemento = document.getElementById('resultado');
-
-  const opciones = {
-    margin:      [8, 8, 8, 8],          // top, left, bottom, right en mm
-    filename:    nombre,
-    image:       { type: 'jpeg', quality: 0.95 },
-    html2canvas: {
-      scale:        2,
-      useCORS:      true,
-      logging:      false,
-      backgroundColor: '#ffffff',
-      // Forzar colores de fondo (equivalente a print-color-adjust: exact)
-      onclone: (doc) => {
-        // Ocultar elementos no-print dentro del clon
-        doc.querySelectorAll('.no-print').forEach(el => el.style.display = 'none');
-        // Aplicar fondo blanco al body del clon
-        doc.body.style.background = '#ffffff';
-        // Asegurar que el report-header navy se vea
-        doc.querySelectorAll('.report-header').forEach(el => {
-          el.style.webkitPrintColorAdjust = 'exact';
-          el.style.printColorAdjust = 'exact';
-        });
-      }
-    },
-    jsPDF: {
-      unit:        'mm',
-      format:      'a4',
-      orientation: 'portrait',
-      compress:    true,
-    },
-    pagebreak: {
-      mode:   ['avoid-all', 'css'],
-      before: [],
-      avoid:  ['.inv-card', '.kpi-row', '.section-head']
-    }
-  };
-
-  html2pdf()
-    .set(opciones)
-    .from(elemento)
-    .save()
-    .then(() => {
-      btn.textContent = '⬇ Descargar PDF';
-      btn.classList.remove('btn-pdf-loading');
-      btn.disabled = false;
-    })
-    .catch((err) => {
-      console.error('Error generando PDF:', err);
-      btn.textContent = '⬇ Descargar PDF';
-      btn.classList.remove('btn-pdf-loading');
-      btn.disabled = false;
-      alert('No se pudo generar el PDF. Intenta usar Ctrl+P como alternativa.');
-    });
-}
-
 document.getElementById('inputEjecutora').addEventListener('keydown', e => {
   if (e.key === 'Enter') iniciarDiagnostico();
 });
+
+// ── GENERAR PDF ───────────────────────────────────────────────
+function generarPDF() {
+  const elemento = document.getElementById('resultado');
+  const ejecutora = document.querySelector('.report-muni')?.textContent || 'diagnostico';
+  const fecha = new Date().toISOString().split('T')[0];
+  const nombre = `ExpedienteCheck_${ejecutora.replace(/\s+/g,'_').substring(0,40)}_${fecha}.pdf`;
+
+  const opt = {
+    margin:      [8, 8, 8, 8],
+    filename:    nombre,
+    image:       { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#F4EFE7' },
+    jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak:   { mode: ['css'], avoid: '.inv-card' }
+  };
+
+  const btn = document.querySelector('.btn-pdf');
+  btn.textContent = 'Generando PDF...';
+  btn.disabled = true;
+
+  html2pdf().set(opt).from(elemento).save().then(() => {
+    btn.textContent = '⬇ Descargar PDF';
+    btn.disabled = false;
+  }).catch(() => {
+    btn.textContent = '⬇ Descargar PDF';
+    btn.disabled = false;
+  });
+}
 
 renderHistorial();
 </script>
