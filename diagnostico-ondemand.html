@@ -143,6 +143,99 @@
     .badge { font-size: 8px; padding: 2px 5px; }
     .alertas-row { gap: 4px; margin: 4px 0 2px; }
   }
+  .slide-alcalde { display: none; }
+  @media print {
+    .slide-alcalde {
+      display: flex !important; flex-direction: column; gap: 14px;
+      background: #F4EFE7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      padding: 22px 26px 20px; border: 1px solid #e0d8cc; margin-bottom: 16px;
+      page-break-after: always;
+    }
+    .sl-top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0B2341; padding-bottom: 10px; }
+    .sl-brand { font-size: 9px; font-weight: 700; color: #D4A62A; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
+    .sl-title { font-size: 15px; font-weight: 700; color: #0B2341; }
+    .sl-date  { font-size: 9px; color: #8a8074; text-align: right; line-height: 1.7; }
+    .sl-kpis  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .sl-kpi   { background: #fff !important; border: 1px solid #e0d8cc; border-radius: 8px; padding: 10px 12px; }
+    .sl-kpi-n { font-size: 24px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
+    .sl-kpi-n.verde { color: #1D8F6A !important; }
+    .sl-kpi-n.rojo  { color: #D64545 !important; }
+    .sl-kpi-n.oro   { color: #B8880E !important; }
+    .sl-kpi-lbl { font-size: 8px; color: #8a8074; text-transform: uppercase; letter-spacing: .05em; }
+    .sl-kpi-sub { font-size: 9px; color: #5a5248; margin-top: 3px; line-height: 1.4; }
+    .sl-barras  { background: #fff !important; border: 1px solid #e0d8cc; border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .sl-bar-hdr { display: flex; justify-content: space-between; font-size: 8px; color: #8a8074; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+    .sl-bar-hdr span:last-child { font-size: 9px; font-weight: 600; color: #0B2341; text-transform: none; letter-spacing: 0; }
+    .sl-bar-row { display: flex; align-items: center; gap: 8px; }
+    .sl-bar-lbl { font-size: 9px; color: #8a8074; width: 80px; flex-shrink: 0; }
+    .sl-bar-track { flex: 1; height: 7px; background: #ede6db !important; border-radius: 99px; overflow: hidden; }
+    .sl-bar-fill  { height: 100%; border-radius: 99px; }
+    .sl-bar-fill.dev  { background: #1D8F6A !important; }
+    .sl-bar-fill.comp { background: #D4A62A !important; }
+    .sl-bar-fill.cert { background: #b8c8d8 !important; }
+    .sl-bar-pct { font-size: 10px; font-weight: 700; width: 28px; text-align: right; }
+    .sl-bar-pct.verde { color: #1D8F6A !important; }
+    .sl-bar-pct.oro   { color: #B8880E !important; }
+    .sl-bar-pct.gris  { color: #8a8074; }
+    .sl-ranking { background: #fff !important; border: 1px solid #e0d8cc; border-radius: 8px; padding: 10px 14px; }
+    .sl-rank-hdr { display: flex; justify-content: space-between; font-size: 8px; color: #8a8074; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    .sl-rank-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .sl-rank-item { background: #f8f4ef !important; border: 1px solid #e0d8cc; border-radius: 6px; padding: 8px 10px; }
+    .sl-rank-scope { font-size: 8px; font-weight: 700; color: #8a8074; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+    .sl-rank-pos-row { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
+    .sl-rank-pos { font-size: 20px; font-weight: 700; line-height: 1; }
+    .sl-rank-pos.bueno  { color: #1D8F6A !important; }
+    .sl-rank-pos.medio  { color: #B8880E !important; }
+    .sl-rank-pos.normal { color: #0B2341 !important; }
+    .sl-rank-de { font-size: 9px; color: #b0a898; }
+    .sl-cmp-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+    .sl-cmp-lbl { font-size: 8px; color: #b0a898; width: 22px; flex-shrink: 0; }
+    .sl-cmp-track { flex: 1; height: 4px; background: #e0d8cc !important; border-radius: 99px; overflow: hidden; }
+    .sl-cmp-fill  { height: 100%; border-radius: 99px; }
+    .sl-cmp-fill.muni { background: #0B2341 !important; }
+    .sl-cmp-fill.prom { background: #D4A62A !important; opacity: .7; }
+    .sl-cmp-val { font-size: 9px; font-weight: 600; width: 26px; text-align: right; }
+    .sl-cmp-val.muni { color: #0B2341 !important; }
+    .sl-cmp-val.prom { color: #B8880E !important; }
+    .sl-leg { display: flex; gap: 8px; margin-top: 2px; }
+    .sl-leg-item { display: flex; align-items: center; gap: 3px; font-size: 7.5px; color: #b0a898; }
+    .sl-leg-dot { width: 5px; height: 5px; border-radius: 50%; }
+    .sl-leg-dot.muni { background: #0B2341 !important; }
+    .sl-leg-dot.prom { background: #D4A62A !important; }
+    .sl-alertas { background: #fff !important; border: 1px solid #e0d8cc; border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+    .sl-al-total { display: flex; flex-direction: column; gap: 4px; }
+    .sl-al-linea { font-size: 10px; color: #5a5248; display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+    .sl-al-n { font-size: 20px; font-weight: 700; line-height: 1; }
+    .sl-al-n.navy { color: #0B2341 !important; }
+    .sl-al-n.rojo { color: #D64545 !important; }
+    .sl-al-pim { font-size: 8.5px; font-weight: 600; color: #1D8F6A !important; background: #eaf6f1 !important; border: 1px solid #b8e0d0; border-radius: 3px; padding: 1px 5px; }
+    .sl-al-div { height: 1px; background: #ede6db !important; }
+    .sl-al-desg { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .sl-al-tipo { border-radius: 6px; padding: 8px 10px; }
+    .sl-al-tipo.rojo  { background: #fdf0f0 !important; border: 1px solid #f0c8c8; }
+    .sl-al-tipo.amber { background: #fdf6e8 !important; border: 1px solid #e8d4a0; }
+    .sl-al-tipo-n { font-size: 18px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
+    .sl-al-tipo.rojo  .sl-al-tipo-n { color: #D64545 !important; }
+    .sl-al-tipo.amber .sl-al-tipo-n { color: #B8880E !important; }
+    .sl-al-tipo-lbl { font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .sl-al-tipo.rojo  .sl-al-tipo-lbl { color: #a03030 !important; }
+    .sl-al-tipo.amber .sl-al-tipo-lbl { color: #8a6010 !important; }
+    .sl-al-tipo-desc { font-size: 8.5px; line-height: 1.4; margin-top: 2px; }
+    .sl-al-tipo.rojo  .sl-al-tipo-desc { color: #c06060 !important; }
+    .sl-al-tipo.amber .sl-al-tipo-desc { color: #a07830 !important; }
+    .sl-top3-hdr { font-size: 8.5px; color: #8a8074; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+    .sl-obra { display: flex; align-items: flex-start; gap: 7px; padding: 4px 0; border-bottom: 1px solid #f0ebe3; }
+    .sl-obra:last-child { border-bottom: none; padding-bottom: 0; }
+    .sl-obra-n { font-size: 9px; font-weight: 700; color: #c8c0b4; width: 11px; flex-shrink: 0; }
+    .sl-obra-nom { flex: 1; font-size: 9.5px; color: #2a2420; line-height: 1.3; }
+    .sl-obra-monto { font-size: 9px; color: #8a8074; white-space: nowrap; margin-right: 4px; }
+    .sl-obra-badge { font-size: 8px; font-weight: 700; padding: 1px 6px; border-radius: 99px; white-space: nowrap; }
+    .sl-obra-badge.rojo  { background: #fdeaea !important; color: #a03030 !important; border: 1px solid #f0c8c8; }
+    .sl-obra-badge.amber { background: #fdf6e8 !important; color: #8a6010 !important; border: 1px solid #e8d4a0; }
+    .sl-express { background: #fff8e8 !important; border: 1px solid #e8d4a0; border-radius: 6px; padding: 8px 12px; font-size: 9px; color: #6a5830; line-height: 1.5; }
+    .sl-express strong { color: #8a6010 !important; font-weight: 700; }
+    .sl-footer { display: flex; justify-content: space-between; border-top: 1px solid #e0d8cc; padding-top: 8px; font-size: 8px; color: #b0a898; }
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
@@ -165,9 +258,13 @@
         autocomplete="off" spellcheck="false">
       <button id="btnBuscar" class="btn-primary" onclick="iniciarDiagnostico()">Analizar</button>
     </div>
-    <input id="inputDepartamento" class="search-input input-sm" type="text"
-      placeholder="Departamento (opcional, ej: LIMA)" autocomplete="off">
-    <p class="hint">Si hay varias municipalidades con nombre similar, agrega el departamento arriba.</p>
+    <div class="search-row" style="margin-top:8px">
+      <input id="inputDepartamento" class="search-input" type="text"
+        placeholder="Departamento (ej: AREQUIPA)" autocomplete="off" spellcheck="false">
+      <input id="inputProvincia" class="search-input" type="text"
+        placeholder="Provincia (ej: AREQUIPA)" autocomplete="off" spellcheck="false">
+    </div>
+    <p class="hint">Departamento y provincia son obligatorios para calcular el ranking comparativo.</p>
   </div>
 
   <div id="loading" style="display:none">
@@ -426,8 +523,201 @@ function agruparMEF(registros) {
   return map;
 }
 
+// ── RANKING ───────────────────────────────────────────────────
+async function fetchRanking(ejecutora, departamento, provincia) {
+  try {
+    const sqlDept = `SELECT "EJECUTORA_NOMBRE","MONTO_PIM","MONTO_DEVENGADO" FROM "${RESOURCE_ID}" WHERE "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}' AND "ANO_EJE"='${ANO}' LIMIT 32000`;
+    const sqlNac  = `SELECT "EJECUTORA_NOMBRE","MONTO_PIM","MONTO_DEVENGADO","TIPO_GOBIERNO_NOMBRE" FROM "${RESOURCE_ID}" WHERE "TIPO_GOBIERNO_NOMBRE"='GOBIERNOS LOCALES' AND "ANO_EJE"='${ANO}' LIMIT 32000`;
+    const [rDept, rNac] = await Promise.all([
+      fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlDept)}`).then(r=>r.json()),
+      fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlNac)}`).then(r=>r.json()),
+    ]);
+    function agrupar(registros) {
+      const map = new Map();
+      for (const r of (registros.records||[])) {
+        const k = String(r.EJECUTORA_NOMBRE||'').trim();
+        if (!k) continue;
+        if (!map.has(k)) map.set(k, {pim:0, dev:0});
+        map.get(k).pim += num(r.MONTO_PIM);
+        map.get(k).dev += num(r.MONTO_DEVENGADO);
+      }
+      return map;
+    }
+    function calcPct(m) { return m.pim > 0 ? (m.dev / m.pim * 100) : 0; }
+    const mapDept = agrupar(rDept);
+    const mapNac  = agrupar(rNac);
+    const pctEj = calcPct(mapDept.get(ejecutora) || {pim:0,dev:0});
+    // Ranking departamental (todas las munis del dpto)
+    const listDept = [...mapDept.entries()].filter(([,v])=>v.pim>0).map(([,v])=>calcPct(v)).sort((a,b)=>b-a);
+    const posDept  = listDept.findIndex(p=>p<=pctEj+0.01)+1 || listDept.length;
+    const promDept = listDept.length ? listDept.reduce((s,v)=>s+v,0)/listDept.length : 0;
+    // Ranking nacional solo provinciales (MUNICIPALIDAD PROVINCIAL en nombre)
+    const listNacProv = [...mapNac.entries()].filter(([k,v])=>v.pim>0 && k.includes('PROVINCIAL')).map(([,v])=>calcPct(v)).sort((a,b)=>b-a);
+    const posNac  = listNacProv.findIndex(p=>p<=pctEj+0.01)+1 || listNacProv.length;
+    const promNac = listNacProv.length ? listNacProv.reduce((s,v)=>s+v,0)/listNacProv.length : 0;
+    // Ranking provincial — filtra por nombre de provincia ingresado por el usuario
+    const listProv = [...mapDept.entries()].filter(([k,v])=>v.pim>0 && k.includes(provincia)).map(([,v])=>calcPct(v)).sort((a,b)=>b-a);
+    const posProv  = listProv.findIndex(p=>p<=pctEj+0.01)+1 || listProv.length;
+    const promProv = listProv.length ? listProv.reduce((s,v)=>s+v,0)/listProv.length : 0;
+    return {
+      pctEj: pctEj.toFixed(1),
+      prov:  { pos: posProv, total: listProv.length,  prom: promProv.toFixed(1) },
+      dept:  { pos: posDept, total: listDept.length,  prom: promDept.toFixed(1) },
+      nac:   { pos: posNac,  total: listNacProv.length, prom: promNac.toFixed(1) },
+    };
+  } catch(e) { return null; }
+}
+
+// ── SLIDE ALCALDE ─────────────────────────────────────────────
+function renderSlideAlcalde(ejecutora, datos) {
+  const { total, conAlerta, pimTotal, compTotal, devTotal, certTotal, pctDev, saldoPim,
+          rojas, amars, top3, ranking, fechaStr } = datos;
+  const pctComp = pimTotal > 0 ? (compTotal/pimTotal*100).toFixed(1) : 0;
+  const pctCert = pimTotal > 0 ? (certTotal/pimTotal*100).toFixed(1) : 0;
+
+  function rankColor(pos, total) {
+    const pct = pos/total;
+    return pct <= 0.25 ? 'bueno' : pct <= 0.50 ? 'medio' : 'normal';
+  }
+  function rankBloque(scope, r) {
+    if (!r || !r.total) return `<div class="sl-rank-item"><div class="sl-rank-scope">${scope}</div><div class="sl-rank-de" style="font-size:9px;color:#b0a898;margin-top:4px">Sin datos disponibles</div></div>`;
+    const col = rankColor(r.pos, r.total);
+    const muniW = Math.min(Math.round((parseFloat(datos.pctDev)/100)*100), 100);
+    const promW = Math.min(Math.round((parseFloat(r.prom)/100)*100), 100);
+    return `
+    <div class="sl-rank-item">
+      <div class="sl-rank-scope">${scope}</div>
+      <div class="sl-rank-pos-row">
+        <div class="sl-rank-pos ${col}">${r.pos}°</div>
+        <div class="sl-rank-de">de ${r.total}</div>
+      </div>
+      <div class="sl-cmp-row">
+        <span class="sl-cmp-lbl">Muni</span>
+        <div class="sl-cmp-track"><div class="sl-cmp-fill muni" style="width:${muniW}%"></div></div>
+        <span class="sl-cmp-val muni">${datos.pctDev}%</span>
+      </div>
+      <div class="sl-cmp-row">
+        <span class="sl-cmp-lbl">Prom</span>
+        <div class="sl-cmp-track"><div class="sl-cmp-fill prom" style="width:${promW}%"></div></div>
+        <span class="sl-cmp-val prom">${r.prom}%</span>
+      </div>
+      <div class="sl-leg">
+        <div class="sl-leg-item"><div class="sl-leg-dot muni"></div>Esta municipalidad</div>
+        <div class="sl-leg-item"><div class="sl-leg-dot prom"></div>Promedio</div>
+      </div>
+    </div>`;
+  }
+
+  const top3html = top3.map((inv, i) => {
+    const alNivel = inv.alertas.some(a=>a.nivel==='rojo') ? 'rojo' : 'amber';
+    const alTitulo = inv.alertas[0]?.titulo || '';
+    return `
+    <div class="sl-obra">
+      <div class="sl-obra-n">${i+1}</div>
+      <div class="sl-obra-nom">${inv.nombre || 'Sin nombre en SSI'}</div>
+      <div class="sl-obra-monto">${fmtS(inv.mefData?.pim || 0)}</div>
+      <div class="sl-obra-badge ${alNivel}">${alTitulo}</div>
+    </div>`;
+  }).join('');
+
+  const rankingHtml = ranking
+    ? rankBloque('Provincia', ranking.prov) + rankBloque('Región', ranking.dept) + rankBloque('Nacional · Prov.', ranking.nac)
+    : `<div class="sl-rank-item" style="grid-column:span 3;font-size:9px;color:#b0a898">Ranking no disponible — reintente con conexión estable</div>`;
+
+  return `<div class="slide-alcalde">
+  <div class="sl-top">
+    <div>
+      <div class="sl-brand">ExpedienteCheck · Resumen Ejecutivo</div>
+      <div class="sl-title">${ejecutora}</div>
+    </div>
+    <div>
+      <div class="sl-date">Diagnóstico al ${fechaStr}</div>
+      <div class="sl-date">Fuente: MEF SSI · Datos Abiertos</div>
+    </div>
+  </div>
+  <div class="sl-kpis">
+    <div class="sl-kpi">
+      <div class="sl-kpi-n verde">${pctDev}%</div>
+      <div class="sl-kpi-lbl">Ejecución del PIM</div>
+      <div class="sl-kpi-sub">${fmtS(devTotal)} devengado de ${fmtS(pimTotal)} — 6 meses para el cierre fiscal</div>
+    </div>
+    <div class="sl-kpi">
+      <div class="sl-kpi-n rojo">${conAlerta}</div>
+      <div class="sl-kpi-lbl">Inversiones con alertas</div>
+      <div class="sl-kpi-sub">De ${total} con presupuesto ${ANO} — presupuestales, registro y consistencia</div>
+    </div>
+    <div class="sl-kpi">
+      <div class="sl-kpi-n oro">${fmtS(saldoPim)}</div>
+      <div class="sl-kpi-lbl">Presupuesto por ejecutar</div>
+      <div class="sl-kpi-sub">El MEF recupera lo no ejecutado al cierre de diciembre</div>
+    </div>
+  </div>
+  <div class="sl-barras">
+    <div class="sl-bar-hdr"><span>Estado del presupuesto ${ANO}</span><span>PIM total: ${fmtS(pimTotal)}</span></div>
+    <div class="sl-bar-row">
+      <span class="sl-bar-lbl">Devengado</span>
+      <div class="sl-bar-track"><div class="sl-bar-fill dev" style="width:${Math.min(parseFloat(pctDev),100)}%"></div></div>
+      <span class="sl-bar-pct verde">${pctDev}%</span>
+    </div>
+    <div class="sl-bar-row">
+      <span class="sl-bar-lbl">Comprometido</span>
+      <div class="sl-bar-track"><div class="sl-bar-fill comp" style="width:${Math.min(parseFloat(pctComp),100)}%"></div></div>
+      <span class="sl-bar-pct oro">${pctComp}%</span>
+    </div>
+    <div class="sl-bar-row">
+      <span class="sl-bar-lbl">Certificado</span>
+      <div class="sl-bar-track"><div class="sl-bar-fill cert" style="width:${Math.min(parseFloat(pctCert),100)}%"></div></div>
+      <span class="sl-bar-pct gris">${pctCert}%</span>
+    </div>
+  </div>
+  <div class="sl-ranking">
+    <div class="sl-rank-hdr">
+      <span>Posición en ejecución presupuestal · inversión pública ${ANO}</span>
+      <span style="text-transform:none;letter-spacing:0">Datos Abiertos MEF en tiempo real</span>
+    </div>
+    <div class="sl-rank-grid">${rankingHtml}</div>
+  </div>
+  <div class="sl-alertas">
+    <div class="sl-al-total">
+      <div class="sl-al-linea"><span class="sl-al-n navy">${total}</span> inversiones con presupuesto ${ANO} <span class="sl-al-pim">PIM &gt; 0</span></div>
+      <div class="sl-al-linea"><span class="sl-al-n rojo">${conAlerta}</span> inversiones con al menos 1 alerta detectada</div>
+    </div>
+    <div class="sl-al-div"></div>
+    <div class="sl-al-desg">
+      <div class="sl-al-tipo rojo">
+        <div class="sl-al-tipo-n">${rojas.presup}</div>
+        <div class="sl-al-tipo-lbl">Presupuestales</div>
+        <div class="sl-al-tipo-desc">Sin contrato activo o presupuesto sobreasignado sin respaldo en costo</div>
+      </div>
+      <div class="sl-al-tipo rojo">
+        <div class="sl-al-tipo-n">${rojas.registro}</div>
+        <div class="sl-al-tipo-lbl">De Registro</div>
+        <div class="sl-al-tipo-desc">F12B vencido o inversión desactivada con PIM asignado</div>
+      </div>
+      <div class="sl-al-tipo amber">
+        <div class="sl-al-tipo-n">${amars.consist}</div>
+        <div class="sl-al-tipo-lbl">De Consistencia</div>
+        <div class="sl-al-tipo-desc">Brecha físico-financiero o culminan pronto con bajo avance</div>
+      </div>
+    </div>
+    <div class="sl-al-div"></div>
+    <div class="sl-top3-hdr">Las 3 inversiones que requieren atención esta semana · mayor PIM en riesgo</div>
+    ${top3html}
+  </div>
+  <div class="sl-express">
+    <strong>Diagnóstico express:</strong> detecta 6 tipos de alerta sobre presupuesto, registro y consistencia.
+    El <strong>Monitor ExpedienteCheck</strong> amplía el análisis a más de <strong>15 tipos de alerta</strong> —
+    incluyendo contrataciones SEACE y seguimiento automático del cronograma de contratación.
+  </div>
+  <div class="sl-footer">
+    <span>EXPEDIENTECHECK · DIAGNÓSTICO RÁPIDO</span>
+    <span>El detalle completo por inversión continúa en las páginas siguientes.</span>
+  </div>
+</div>`;
+}
+
 // ── RENDER ────────────────────────────────────────────────────
-function renderReporte(ejecutora, mefMap, inversiones) {
+function renderReporte(ejecutora, mefMap, inversiones, ranking) {
   const total = mefMap.size;
   const conAl = inversiones.filter(i => i.alertas.length > 0);
   const rojas = inversiones.filter(i => i.alertas.some(a => a.nivel === 'rojo'));
@@ -458,7 +748,23 @@ function renderReporte(ejecutora, mefMap, inversiones) {
 
   const fechaStr = HOY.toLocaleDateString('es-PE', { day:'numeric', month:'long', year:'numeric' });
 
-  let html = `
+  // Conteos por categoría para el slide
+  const cntPresup   = inversiones.filter(i => i.alertas.some(a => ['SIN_CONTRATO','PRESUP_INFLADO','DESACTIVADO_CON_PRESUPUESTO','RECTA_FINAL'].includes(a.codigo))).length;
+  const cntRegistro = inversiones.filter(i => i.alertas.some(a => ['F12B_DESACTUALIZADO'].includes(a.codigo)) || i.alertas.some(a => a.codigo==='DESACTIVADO_CON_PRESUPUESTO')).length;
+  const cntConsist  = inversiones.filter(i => i.alertas.some(a => ['BRECHA_FIN_FIS','VENCE_SIN_AVANCE'].includes(a.codigo))).length;
+  // Top 3 con alertas ordenadas por mayor PIM
+  const top3slide = [...inversiones].filter(i => i.alertas.length > 0).sort((a,b)=>(b.mefData?.pim||0)-(a.mefData?.pim||0)).slice(0,3);
+
+  const slideDatos = {
+    total, conAlerta: conAl.length,
+    pimTotal, compTotal, devTotal, certTotal,
+    pctDev: pctDev || '0.0', saldoPim,
+    rojas: { presup: cntPresup, registro: cntRegistro },
+    amars: { consist: cntConsist },
+    top3: top3slide, ranking, fechaStr,
+  };
+
+  let html = renderSlideAlcalde(ejecutora, slideDatos) + `
   <div class="report-header">
     <div class="report-muni">${ejecutora}</div>
     <div class="report-sub">Diagnóstico generado el ${fechaStr} · Fuente: MEF SSI + Datos Abiertos ${ANO}</div>
@@ -625,8 +931,11 @@ async function logBackend(ejecutora, total, alertas) {
 async function iniciarDiagnostico() {
   const ejecutora    = document.getElementById('inputEjecutora').value.trim().toUpperCase();
   const departamento = document.getElementById('inputDepartamento').value.trim().toUpperCase() || null;
+  const provincia    = document.getElementById('inputProvincia').value.trim().toUpperCase() || null;
 
   if (!ejecutora || ejecutora.length < 5) { alert('Ingresa el nombre de la municipalidad ejecutora.'); return; }
+  if (!departamento) { alert('Ingresa el departamento para calcular el ranking comparativo.'); return; }
+  if (!provincia)    { alert('Ingresa la provincia para calcular el ranking comparativo.'); return; }
 
   document.getElementById('errorBox').style.display  = 'none';
   document.getElementById('resultado').style.display = 'none';
@@ -672,7 +981,11 @@ async function iniciarDiagnostico() {
 
     document.getElementById('loading').style.display = 'none';
     const totalAlertas = inversiones.reduce((s,i) => s + i.alertas.length, 0);
-    renderReporte(ejecutora, mefMap, inversiones);
+    setLoading('Calculando ranking...', 'Comparando con municipalidades del departamento y del país');
+    document.getElementById('loading').style.display = 'block';
+    const ranking = await fetchRanking(ejecutora, departamento, provincia);
+    document.getElementById('loading').style.display = 'none';
+    renderReporte(ejecutora, mefMap, inversiones, ranking);
     guardarHistorial(ejecutora, mefMap.size, totalAlertas);
     logBackend(ejecutora, mefMap.size, totalAlertas);
 
