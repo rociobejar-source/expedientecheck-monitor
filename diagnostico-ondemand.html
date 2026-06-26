@@ -113,7 +113,7 @@
 <div class="container">
 
   <div class="search-panel no-print">
-    <h2>Buscar municipalidad</h2>
+    <h2>Buscar entidad</h2>
     <p>Ingresa el nombre exacto de la unidad ejecutora tal como figura en el MEF. El sistema consulta las APIs del MEF y genera el diagnóstico automáticamente.</p>
     <div class="search-row">
       <input id="inputEjecutora" class="search-input" type="text"
@@ -225,6 +225,12 @@ async function fetchSSI(cui) {
       pim     = num(rows[0]?.MTO_PIM);
       dev2026 = rows.reduce((s,r) => s + num(r.DEV_ANIO1), 0);
       devAcum = rows.reduce((s,r) => s + num(r.MTO_DEVEN), 0);
+      // Si no tiene F12B, MTO_DEVEN de traeDevengSSI es solo el año vigente
+      // — intentar usar DEV_ACUMULADO del objeto base si existe
+      if (!tieneF12B && datos) {
+        const devAcumBase = num(datos.DEV_ACUMULADO ?? datos.DEV_ACUM_ANT);
+        if (devAcumBase > devAcum) devAcum = devAcumBase;
+      }
     } catch(e) {}
 
     if (!datos) return null;
@@ -327,7 +333,7 @@ function evaluarAlertas(o, mef) {
   if (diasFin !== null && diasFin > 0 && diasFin <= 60 && fis !== null && fis < 70 && fis > 0) {
     alertas.push({
       codigo: 'VENCE_SIN_AVANCE', nivel: 'amarillo',
-      titulo: `Vence en ${diasFin} días · avance ${fmtPct(fis)}`,
+      titulo: `Culmina en ${diasFin} días · avance ${fmtPct(fis)}`,
       desc: `Según los registros, la inversión culmina el ${o.fecha_fin} (en ${diasFin} días) pero el avance físico es de solo ${fmtPct(fis)}, faltando más del 30% para completarse. Sin un cronograma acelerado o una ampliación de plazo formalizada antes del vencimiento, la inversión se detectará como atrasada.`
     });
   }
@@ -355,7 +361,7 @@ function agruparMEF(registros) {
 
 // ── RENDER ────────────────────────────────────────────────────
 function renderReporte(ejecutora, mefMap, inversiones) {
-  const total = inversiones.length;
+  const total = mefMap.size;
   const conAl = inversiones.filter(i => i.alertas.length > 0);
   const rojas = inversiones.filter(i => i.alertas.some(a => a.nivel === 'rojo'));
   const amars = inversiones.filter(i => !i.alertas.some(a => a.nivel === 'rojo') && i.alertas.some(a => a.nivel === 'amarillo'));
@@ -429,7 +435,7 @@ function renderReporte(ejecutora, mefMap, inversiones) {
           <div class="inv-meta-item">Comprometido: <strong>${fmtS(mef.comprometido)}</strong></div>
           <div class="inv-meta-item">Devengado: <strong>${fmtS(inv.dev2026)}</strong></div>
           <div class="inv-meta-item">Avance físico: <strong>${fmtPct(inv.avance_fisico)}</strong></div>
-          ${inv.fecha_fin ? `<div class="inv-meta-item">Vence: <strong>${inv.fecha_fin}</strong></div>` : ''}
+          ${inv.fecha_fin ? `<div class="inv-meta-item">Fecha de culminación registrada: <strong>${inv.fecha_fin}</strong></div>` : ''}
           ${inv.ult_f12b  ? `<div class="inv-meta-item">Último F12B: <strong>${inv.ult_f12b}</strong></div>` : ''}
           ${inv.estado    ? `<div class="inv-meta-item">Estado: <strong>${inv.estado}</strong></div>` : ''}
         </div>
