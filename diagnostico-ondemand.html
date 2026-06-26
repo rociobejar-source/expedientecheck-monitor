@@ -494,7 +494,7 @@ function renderReporte(ejecutora, mefMap, inversiones) {
       </div>`;
     for (const inv of topAlertas) {
       const mef = inv.mefData || {};
-      const ssiUrl = `https://ofi5.mef.gob.pe/invierte/transacciones/seguimientoInversion.jsf?cui=${inv.cui}`;
+      const ssiUrl = `https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${inv.cui}&tipo=2`;
       const devAcum = inv.devAcum || 0;
       const costo   = inv.costo_actualizado || 0;
       const dev2026 = inv.dev2026 || 0;
