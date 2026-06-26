@@ -143,7 +143,7 @@
     .badge { font-size: 8px; padding: 2px 5px; }
     .alertas-row { gap: 4px; margin: 4px 0 2px; }
   }
-  .slide-alcalde { display: none; }
+  .slide-alcalde { display: flex; flex-direction: column; gap: 16px; background: #F4EFE7; padding: 28px 32px 24px; border-radius: 12px; border: 1px solid #e0d8cc; margin-bottom: 16px; }
   @media print {
     .slide-alcalde {
       display: flex !important; flex-direction: column; gap: 14px;
@@ -570,7 +570,7 @@ async function fetchRanking(ejecutora, departamento, provincia) {
 
 // ── SLIDE ALCALDE ─────────────────────────────────────────────
 function renderSlideAlcalde(ejecutora, datos) {
-  const { total, conAlerta, pimTotal, compTotal, devTotal, certTotal, pctDev, saldoPim,
+  const { total, conAlerta, pimTotal, compTotal, devTotal, certTotal, pctDev, saldoPim, saldoFinanciar,
           rojas, amars, top3, ranking, fechaStr } = datos;
   const pctComp = pimTotal > 0 ? (compTotal/pimTotal*100).toFixed(1) : 0;
   const pctCert = pimTotal > 0 ? (certTotal/pimTotal*100).toFixed(1) : 0;
@@ -669,6 +669,18 @@ function renderSlideAlcalde(ejecutora, datos) {
       <div class="sl-bar-track"><div class="sl-bar-fill cert" style="width:${Math.min(parseFloat(pctCert),100)}%"></div></div>
       <span class="sl-bar-pct gris">${pctCert}%</span>
     </div>
+    <div style="display:flex;gap:10px;margin-top:4px;padding-top:8px;border-top:1px solid #e0d8cc;">
+      <div style="flex:1;background:#f8f4ef;border-radius:6px;padding:7px 10px;">
+        <div style="font-size:8px;color:#8a8074;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Saldo PIM ${ANO}</div>
+        <div style="font-size:14px;font-weight:700;color:#D64545;">${fmtS(saldoPim)}</div>
+        <div style="font-size:8px;color:#b0a898;margin-top:1px;">Presupuesto sin ejecutar este año</div>
+      </div>
+      <div style="flex:1;background:#f8f4ef;border-radius:6px;padding:7px 10px;">
+        <div style="font-size:8px;color:#8a8074;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Saldo por financiar</div>
+        <div style="font-size:14px;font-weight:700;color:#B8880E;">${saldoFinanciar > 0 ? fmtS(saldoFinanciar) : '—'}</div>
+        <div style="font-size:8px;color:#b0a898;margin-top:1px;">Lo que falta para terminar las obras</div>
+      </div>
+    </div>
   </div>
   <div class="sl-ranking">
     <div class="sl-rank-hdr">
@@ -758,7 +770,7 @@ function renderReporte(ejecutora, mefMap, inversiones, ranking) {
   const slideDatos = {
     total, conAlerta: conAl.length,
     pimTotal, compTotal, devTotal, certTotal,
-    pctDev: pctDev || '0.0', saldoPim,
+    pctDev: pctDev || '0.0', saldoPim, saldoFinanciar,
     rojas: { presup: cntPresup, registro: cntRegistro },
     amars: { consist: cntConsist },
     top3: top3slide, ranking, fechaStr,
@@ -1052,6 +1064,76 @@ function imprimirReporte() {
     '.badge-green{background:#D1FAE5;color:#065F46;}' +
     '.alerta-desc{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;background:#f8f4ef;border-radius:6px;padding:8px 10px;}' +
     '.no-print,.actions{display:none!important;}' +
+    '.slide-alcalde{display:flex!important;flex-direction:column;gap:14px;background:#F4EFE7;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:22px 26px 20px;border:1px solid #e0d8cc;margin-bottom:16px;page-break-after:always;}' +
+    '.sl-top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0B2341;padding-bottom:10px;}' +
+    '.sl-brand{font-size:9px;font-weight:700;color:#D4A62A;letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px;}' +
+    '.sl-title{font-size:15px;font-weight:700;color:#0B2341;}' +
+    '.sl-date{font-size:9px;color:#8a8074;text-align:right;line-height:1.7;}' +
+    '.sl-kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}' +
+    '.sl-kpi{background:#fff;border:1px solid #e0d8cc;border-radius:8px;padding:10px 12px;}' +
+    '.sl-kpi-n{font-size:24px;font-weight:700;line-height:1;margin-bottom:2px;}' +
+    '.sl-kpi-n.verde{color:#1D8F6A;}.sl-kpi-n.rojo{color:#D64545;}.sl-kpi-n.oro{color:#B8880E;}' +
+    '.sl-kpi-lbl{font-size:8px;color:#8a8074;text-transform:uppercase;letter-spacing:.05em;}' +
+    '.sl-kpi-sub{font-size:9px;color:#5a5248;margin-top:3px;line-height:1.4;}' +
+    '.sl-barras{background:#fff;border:1px solid #e0d8cc;border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:6px;}' +
+    '.sl-bar-hdr{display:flex;justify-content:space-between;font-size:8px;color:#8a8074;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}' +
+    '.sl-bar-hdr span:last-child{font-size:9px;font-weight:600;color:#0B2341;text-transform:none;letter-spacing:0;}' +
+    '.sl-bar-row{display:flex;align-items:center;gap:8px;}' +
+    '.sl-bar-lbl{font-size:9px;color:#8a8074;width:80px;flex-shrink:0;}' +
+    '.sl-bar-track{flex:1;height:7px;background:#ede6db;border-radius:99px;overflow:hidden;}' +
+    '.sl-bar-fill{height:100%;border-radius:99px;}' +
+    '.sl-bar-fill.dev{background:#1D8F6A;}.sl-bar-fill.comp{background:#D4A62A;}.sl-bar-fill.cert{background:#b8c8d8;}' +
+    '.sl-bar-pct{font-size:10px;font-weight:700;width:28px;text-align:right;}' +
+    '.sl-bar-pct.verde{color:#1D8F6A;}.sl-bar-pct.oro{color:#B8880E;}.sl-bar-pct.gris{color:#8a8074;}' +
+    '.sl-ranking{background:#fff;border:1px solid #e0d8cc;border-radius:8px;padding:10px 14px;}' +
+    '.sl-rank-hdr{display:flex;justify-content:space-between;font-size:8px;color:#8a8074;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;}' +
+    '.sl-rank-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}' +
+    '.sl-rank-item{background:#f8f4ef;border:1px solid #e0d8cc;border-radius:6px;padding:8px 10px;}' +
+    '.sl-rank-scope{font-size:8px;font-weight:700;color:#8a8074;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;}' +
+    '.sl-rank-pos-row{display:flex;align-items:baseline;gap:4px;margin-bottom:4px;}' +
+    '.sl-rank-pos{font-size:20px;font-weight:700;line-height:1;}' +
+    '.sl-rank-pos.bueno{color:#1D8F6A;}.sl-rank-pos.medio{color:#B8880E;}.sl-rank-pos.normal{color:#0B2341;}' +
+    '.sl-rank-de{font-size:9px;color:#b0a898;}' +
+    '.sl-cmp-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;}' +
+    '.sl-cmp-lbl{font-size:8px;color:#b0a898;width:22px;flex-shrink:0;}' +
+    '.sl-cmp-track{flex:1;height:4px;background:#e0d8cc;border-radius:99px;overflow:hidden;}' +
+    '.sl-cmp-fill{height:100%;border-radius:99px;}' +
+    '.sl-cmp-fill.muni{background:#0B2341;}.sl-cmp-fill.prom{background:#D4A62A;opacity:.7;}' +
+    '.sl-cmp-val{font-size:9px;font-weight:600;width:26px;text-align:right;}' +
+    '.sl-cmp-val.muni{color:#0B2341;}.sl-cmp-val.prom{color:#B8880E;}' +
+    '.sl-leg{display:flex;gap:8px;margin-top:2px;}' +
+    '.sl-leg-item{display:flex;align-items:center;gap:3px;font-size:7.5px;color:#b0a898;}' +
+    '.sl-leg-dot{width:5px;height:5px;border-radius:50%;}' +
+    '.sl-leg-dot.muni{background:#0B2341;}.sl-leg-dot.prom{background:#D4A62A;}' +
+    '.sl-alertas{background:#fff;border:1px solid #e0d8cc;border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:10px;}' +
+    '.sl-al-total{display:flex;flex-direction:column;gap:4px;}' +
+    '.sl-al-linea{font-size:10px;color:#5a5248;display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;}' +
+    '.sl-al-n{font-size:20px;font-weight:700;line-height:1;}' +
+    '.sl-al-n.navy{color:#0B2341;}.sl-al-n.rojo{color:#D64545;}' +
+    '.sl-al-pim{font-size:8.5px;font-weight:600;color:#1D8F6A;background:#eaf6f1;border:1px solid #b8e0d0;border-radius:3px;padding:1px 5px;}' +
+    '.sl-al-div{height:1px;background:#ede6db;}' +
+    '.sl-al-desg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}' +
+    '.sl-al-tipo{border-radius:6px;padding:8px 10px;}' +
+    '.sl-al-tipo.rojo{background:#fdf0f0;border:1px solid #f0c8c8;}' +
+    '.sl-al-tipo.amber{background:#fdf6e8;border:1px solid #e8d4a0;}' +
+    '.sl-al-tipo-n{font-size:18px;font-weight:700;line-height:1;margin-bottom:2px;}' +
+    '.sl-al-tipo.rojo .sl-al-tipo-n{color:#D64545;}.sl-al-tipo.amber .sl-al-tipo-n{color:#B8880E;}' +
+    '.sl-al-tipo-lbl{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}' +
+    '.sl-al-tipo.rojo .sl-al-tipo-lbl{color:#a03030;}.sl-al-tipo.amber .sl-al-tipo-lbl{color:#8a6010;}' +
+    '.sl-al-tipo-desc{font-size:8.5px;line-height:1.4;margin-top:2px;}' +
+    '.sl-al-tipo.rojo .sl-al-tipo-desc{color:#c06060;}.sl-al-tipo.amber .sl-al-tipo-desc{color:#a07830;}' +
+    '.sl-top3-hdr{font-size:8.5px;color:#8a8074;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}' +
+    '.sl-obra{display:flex;align-items:flex-start;gap:7px;padding:4px 0;border-bottom:1px solid #f0ebe3;}' +
+    '.sl-obra:last-child{border-bottom:none;padding-bottom:0;}' +
+    '.sl-obra-n{font-size:9px;font-weight:700;color:#c8c0b4;width:11px;flex-shrink:0;}' +
+    '.sl-obra-nom{flex:1;font-size:9.5px;color:#2a2420;line-height:1.3;}' +
+    '.sl-obra-monto{font-size:9px;color:#8a8074;white-space:nowrap;margin-right:4px;}' +
+    '.sl-obra-badge{font-size:8px;font-weight:700;padding:1px 6px;border-radius:99px;white-space:nowrap;}' +
+    '.sl-obra-badge.rojo{background:#fdeaea;color:#a03030;border:1px solid #f0c8c8;}' +
+    '.sl-obra-badge.amber{background:#fdf6e8;color:#8a6010;border:1px solid #e8d4a0;}' +
+    '.sl-express{background:#fff8e8;border:1px solid #e8d4a0;border-radius:6px;padding:8px 12px;font-size:9px;color:#6a5830;line-height:1.5;}' +
+    '.sl-express strong{color:#8a6010;font-weight:700;}' +
+    '.sl-footer{display:flex;justify-content:space-between;border-top:1px solid #e0d8cc;padding-top:8px;font-size:8px;color:#b0a898;}' +
     '@media print{body{background:#fff;padding:0;}.section{overflow:visible!important;break-inside:auto;page-break-inside:auto;border-radius:0;}.inv-card{break-inside:avoid;page-break-inside:avoid;}.report-header{border-radius:0;}}' +
     '</style></head><body>' + contenido + '</body></html>');
   ventana.document.close();
