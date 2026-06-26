@@ -113,12 +113,28 @@
 
   @media print {
     .topbar, .search-panel, .actions, .historial, .no-print { display: none !important; }
-    body { background: #fff; }
+    body { background: #fff; font-size: 11px; }
     .container { padding: 0; max-width: 100%; }
-    .report-header { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .report-header { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 14px 18px; margin-bottom: 8px; }
+    .report-muni { font-size: 15px; }
+    .report-sub { font-size: 10px; margin-bottom: 10px; }
+    .kpi-row { gap: 6px; }
+    .kpi { padding: 8px 10px; }
+    .kpi-val { font-size: 16px !important; }
+    .kpi-lbl { font-size: 9px; }
     #resultado { display: block !important; }
-    .section { break-inside: avoid; }
-    .inv-card { break-inside: avoid; }
+    .section { break-inside: avoid; margin-bottom: 8px; border-radius: 0; }
+    .section-head { padding: 8px 14px; }
+    .inv-card { break-inside: avoid; padding: 10px 14px; }
+    .inv-nombre { font-size: 11px; }
+    .inv-grid { gap: 5px; margin-bottom: 5px; }
+    .inv-kpi { padding: 5px 7px; }
+    .inv-kpi-lbl { font-size: 9px; }
+    .inv-kpi-val { font-size: 11px; }
+    .inv-prog { margin: 6px 0 5px; }
+    .inv-footer { padding: 5px 0; margin: 5px 0; }
+    .alerta-desc { font-size: 10px; padding: 5px 8px; margin-top: 3px; }
+    .badge { font-size: 9px; padding: 2px 6px; }
   }
 </style>
 </head>
@@ -637,8 +653,8 @@ async function iniciarDiagnostico() {
     document.getElementById('loading').style.display = 'none';
     const totalAlertas = inversiones.reduce((s,i) => s + i.alertas.length, 0);
     renderReporte(ejecutora, mefMap, inversiones);
-    guardarHistorial(ejecutora, inversiones.length, totalAlertas);
-    logBackend(ejecutora, inversiones.length, totalAlertas);
+    guardarHistorial(ejecutora, mefMap.size, totalAlertas);
+    logBackend(ejecutora, mefMap.size, totalAlertas);
 
   } catch(e) {
     document.getElementById('loading').style.display = 'none';
