@@ -99,6 +99,7 @@
     .report-header { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     #resultado { display: block !important; }
     .section { break-inside: avoid; }
+    .inv-card { break-inside: avoid; }
   }
 </style>
 </head>
@@ -279,6 +280,17 @@ function evaluarAlertas(o, mef) {
   const diasFin   = fechaFin ? Math.ceil((fechaFin - HOY) / 86400000) : null;
   const enEjec    = o.estado && o.estado.toUpperCase().includes('EJEC');
 
+  // 0. DESACTIVADO_CON_PRESUPUESTO
+  const desactivado = o.estado && o.estado.toUpperCase().includes('DESACTIVADO');
+  if (desactivado && pim > 0) {
+    alertas.push({
+      codigo: 'DESACTIVADO_CON_PRESUPUESTO', nivel: 'rojo',
+      titulo: 'Desactivada con presupuesto',
+      desc: `La inversión está desactivada temporalmente pero mantiene ${fmtS(pim)} de presupuesto asignado. Si no se reactiva o se reasigna el presupuesto antes de diciembre, el MEF lo recupera al cierre del año fiscal. Verificar con la OPMI si corresponde reactivar, cerrar o hacer una modificación presupuestal.`
+    });
+    return alertas; // no evaluar más alertas para inversiones desactivadas
+  }
+
   // 1. SIN_CONTRATO
   if (pim > 0 && comp === 0 && cert === 0 && dev2026 === 0) {
     alertas.push({
@@ -400,13 +412,26 @@ function renderReporte(ejecutora, mefMap, inversiones) {
       <div class="kpi"><div class="kpi-val" style="font-size:15px">${fmtS(pimTotal)}</div><div class="kpi-lbl">PIM ${ANO}</div></div>
       <div class="kpi"><div class="kpi-val" style="font-size:15px">${fmtS(compTotal)}</div><div class="kpi-lbl">Comprometido</div></div>
       <div class="kpi"><div class="kpi-val" style="font-size:15px">${fmtS(devTotal)}${pctDev ? `<span style="font-size:11px;font-weight:400;margin-left:5px;color:rgba(255,255,255,.6)">${pctDev}%</span>` : ''}</div><div class="kpi-lbl">Devengado ${ANO}</div></div>
-    </div>
-    <div class="kpi-row" style="margin-top:8px">
-      <div class="kpi"><div class="kpi-val red">${rojas.length}</div><div class="kpi-lbl">Alertas rojas</div></div>
-      <div class="kpi"><div class="kpi-val amber">${amars.length}</div><div class="kpi-lbl">Alertas amarillas</div></div>
-      <div class="kpi"><div class="kpi-val green">${total - conAl.length}</div><div class="kpi-lbl">Sin alerta</div></div>
       <div class="kpi"><div class="kpi-val" style="font-size:15px;color:#F08080">${fmtS(saldoPim)}</div><div class="kpi-lbl">Saldo PIM</div></div>
       <div class="kpi"><div class="kpi-val" style="font-size:15px;color:#D4A62A">${saldoFinanciar > 0 ? fmtS(saldoFinanciar) : '—'}</div><div class="kpi-lbl">Saldo por financiar</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h3>Alertas detectadas</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        ${rojas.length > 0 ? `<span class="badge badge-red">🔴 ${rojas.length} crítica${rojas.length>1?'s':''}</span>` : ''}
+        ${amars.length > 0 ? `<span class="badge badge-amber">🟡 ${amars.length} seguimiento</span>` : ''}
+        ${rojas.length === 0 && amars.length === 0 ? `<span style="font-size:12px;color:var(--text2)">✅ Sin alertas detectadas</span>` : ''}
+      </div>
+    </div>
+    <div style="padding:12px 18px;font-size:12px;color:var(--text2);line-height:1.6;border-bottom:1px solid #f0ebe3">
+      Este diagnóstico express detecta <strong>6 tipos de alerta</strong>: sin contrato activo, F12B desactualizado, brecha físico-financiero, presupuesto inflado, inversión próxima a culminar y desactivada con presupuesto. El <strong>monitor institucional</strong> detecta más de 15 alertas adicionales de registro, avance, presupuestales y contractuales (SEACE).
+    </div>
+    <div style="padding:10px 18px;display:flex;gap:16px;flex-wrap:wrap">
+      <div style="font-size:12px;color:var(--text2)"><strong style="color:var(--text)">${total - conAl.length}</strong> inversiones sin alertas</div>
+      <div style="font-size:12px;color:var(--text2)"><strong style="color:var(--text)">${conAl.length}</strong> inversiones con al menos 1 alerta</div>
     </div>
   </div>`;
 
@@ -425,6 +450,7 @@ function renderReporte(ejecutora, mefMap, inversiones) {
     for (const inv of topAlertas) {
       const mef = inv.mefData || {};
       const ssiUrl = `https://ofi5.mef.gob.pe/invierte/transacciones/seguimientoInversion.jsf?cui=${inv.cui}`;
+      const avFin = (inv.devAcum > 0 && inv.costo_actualizado > 0) ? (inv.devAcum / inv.costo_actualizado * 100).toFixed(1) : null;
       html += `<div class="inv-card">
         <div class="inv-top">
           <div class="inv-nombre">${inv.nombre || 'Sin nombre en SSI'}</div>
@@ -433,8 +459,9 @@ function renderReporte(ejecutora, mefMap, inversiones) {
         <div class="inv-meta">
           <div class="inv-meta-item">PIM: <strong>${fmtS(mef.pim)}</strong></div>
           <div class="inv-meta-item">Comprometido: <strong>${fmtS(mef.comprometido)}</strong></div>
-          <div class="inv-meta-item">Devengado: <strong>${fmtS(inv.dev2026)}</strong></div>
-          <div class="inv-meta-item">Avance físico: <strong>${fmtPct(inv.avance_fisico)}</strong></div>
+          <div class="inv-meta-item">Devengado ${ANO}: <strong>${fmtS(inv.dev2026)}</strong></div>
+          <div class="inv-meta-item">Av. físico acum.: <strong>${fmtPct(inv.avance_fisico)}</strong></div>
+          ${avFin !== null ? `<div class="inv-meta-item">Av. financiero acum.: <strong>${avFin}%</strong></div>` : ''}
           ${inv.fecha_fin ? `<div class="inv-meta-item">Fecha de culminación registrada: <strong>${inv.fecha_fin}</strong></div>` : ''}
           ${inv.ult_f12b  ? `<div class="inv-meta-item">Último F12B: <strong>${inv.ult_f12b}</strong></div>` : ''}
           ${inv.estado    ? `<div class="inv-meta-item">Estado: <strong>${inv.estado}</strong></div>` : ''}
