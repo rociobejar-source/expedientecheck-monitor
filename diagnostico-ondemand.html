@@ -24,6 +24,25 @@
   .search-panel { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); padding: 24px; margin-bottom: 24px; }
   .search-panel h2 { font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
   .search-panel p { font-size: 13px; color: var(--text2); margin-bottom: 16px; line-height: 1.5; }
+
+  .modo-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  .modo-btn { flex: 1; padding: 9px 12px; border: 1px solid var(--border); background: var(--beige); color: var(--text2);
+    border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+  .modo-btn:hover { border-color: var(--navy); }
+  .modo-btn-active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+  .ue-group { border-bottom: 1px solid var(--border); }
+  .ue-group:last-child { border-bottom: none; }
+  .ue-summary { list-style: none; cursor: pointer; padding: 14px 18px; display: flex; align-items: center;
+    justify-content: space-between; gap: 10px; flex-wrap: wrap; background: #faf7f2; }
+  .ue-summary::-webkit-details-marker { display: none; }
+  .ue-summary:hover { background: #f3ede3; }
+  .ue-summary-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 200px; }
+  .ue-caret { font-size: 11px; color: var(--text2); transition: transform .15s; flex-shrink: 0; }
+  .ue-group[open] .ue-caret { transform: rotate(90deg); }
+  .ue-nombre { font-size: 13px; font-weight: 700; color: var(--navy); line-height: 1.35; }
+  .ue-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .ue-badges { display: flex; gap: 6px; flex-shrink: 0; }
   .search-row { display: flex; gap: 10px; }
   .search-input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; color: var(--text); background: var(--beige); outline: none; transition: border-color .2s; }
   .search-input:focus { border-color: var(--navy); background: #fff; }
@@ -142,6 +161,9 @@
     .alerta-desc { font-size: 9px; padding: 4px 7px; margin-top: 2px; }
     .badge { font-size: 8px; padding: 2px 5px; }
     .alertas-row { gap: 4px; margin: 4px 0 2px; }
+    .ue-summary { padding: 6px 12px; }
+    .ue-nombre { font-size: 11px; }
+    .ue-meta { font-size: 9px; }
   }
   .slide-alcalde { display: flex; flex-direction: column; gap: 16px; background: #F4EFE7; padding: 28px 32px 24px; border-radius: 12px; border: 1px solid #e0d8cc; margin-bottom: 16px; }
   .sl-top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0B2341; padding-bottom: 14px; }
@@ -249,20 +271,25 @@
 
   <div class="search-panel no-print">
     <h2>Buscar entidad</h2>
-    <p>Ingresa el nombre exacto de la unidad ejecutora tal como figura en el MEF. El sistema consulta las APIs del MEF y genera el diagnóstico automáticamente.</p>
+    <div class="modo-toggle">
+      <button type="button" id="btnModoMuni" class="modo-btn modo-btn-active" onclick="setModo('muni')">🏛 Municipalidad</button>
+      <button type="button" id="btnModoGore" class="modo-btn" onclick="setModo('gore')">🗺 Gobierno Regional</button>
+      <button type="button" id="btnModoNacional" class="modo-btn" onclick="setModo('nacional')">🏢 Gobierno Nacional</button>
+    </div>
+    <p id="modoHint">Ingresa el nombre exacto de la unidad ejecutora tal como figura en el MEF. El sistema consulta las APIs del MEF y genera el diagnóstico automáticamente.</p>
     <div class="search-row">
       <input id="inputEjecutora" class="search-input" type="text"
         placeholder="Ej: MUNICIPALIDAD PROVINCIAL DE AREQUIPA"
         autocomplete="off" spellcheck="false">
       <button id="btnBuscar" class="btn-primary" onclick="iniciarDiagnostico()">Analizar</button>
     </div>
-    <div class="search-row" style="margin-top:8px">
+    <div class="search-row" id="filaDeptProv" style="margin-top:8px">
       <input id="inputDepartamento" class="search-input" type="text"
         placeholder="Departamento (ej: AREQUIPA)" autocomplete="off" spellcheck="false">
       <input id="inputProvincia" class="search-input" type="text"
         placeholder="Provincia (ej: AREQUIPA)" autocomplete="off" spellcheck="false">
     </div>
-    <p class="hint">Departamento y provincia son obligatorios para calcular el ranking comparativo.</p>
+    <p class="hint" id="modoHintSub">Departamento y provincia son obligatorios para calcular el ranking comparativo.</p>
   </div>
 
   <div id="loading" style="display:none">
@@ -294,6 +321,36 @@ const MONITOR_URL = 'https://monitor.expedientecheck.com';
 const ANO         = new Date().getFullYear().toString();
 const HOY         = new Date();
 
+// ── MODO (municipalidad / gobierno regional) ─────────────────
+let MODO = 'muni'; // 'muni' | 'gore'
+
+function setModo(m) {
+  MODO = m;
+  document.getElementById('btnModoMuni').classList.toggle('modo-btn-active', m === 'muni');
+  document.getElementById('btnModoGore').classList.toggle('modo-btn-active', m === 'gore');
+  document.getElementById('btnModoNacional').classList.toggle('modo-btn-active', m === 'nacional');
+  const inputEj  = document.getElementById('inputEjecutora');
+  const filaDeptProv = document.getElementById('filaDeptProv');
+  const hint     = document.getElementById('modoHint');
+  const hintSub  = document.getElementById('modoHintSub');
+  if (m === 'muni') {
+    inputEj.placeholder = 'Ej: MUNICIPALIDAD PROVINCIAL DE AREQUIPA';
+    hint.textContent    = 'Ingresa el nombre exacto de la unidad ejecutora tal como figura en el MEF. El sistema consulta las APIs del MEF y genera el diagnóstico automáticamente.';
+    hintSub.textContent = 'Departamento y provincia son obligatorios para calcular el ranking comparativo.';
+    filaDeptProv.style.display = 'flex';
+  } else if (m === 'gore') {
+    inputEj.placeholder = 'Ej: AREQUIPA (solo el departamento/región)';
+    hint.textContent    = 'Ingresa solo el nombre del departamento o región. El sistema identifica automáticamente el Gobierno Regional (Pliego) y trae TODAS las inversiones de todas sus Unidades Ejecutoras — puede tardar varios minutos por el volumen.';
+    hintSub.textContent = 'No necesitas el nombre exacto del Pliego ni provincia — solo el departamento.';
+    filaDeptProv.style.display = 'none';
+  } else {
+    inputEj.placeholder = 'Ej: EDUCACION, SALUD, TRANSPORTES (nombre del ministerio o Pliego)';
+    hint.textContent    = 'Ingresa un fragmento del nombre del Pliego a nivel nacional (ej: un ministerio o entidad autónoma). El sistema identifica el Pliego exacto y trae TODAS las inversiones de todas sus Unidades Ejecutoras — en entidades grandes puede haber miles de inversiones y tardar varios minutos.';
+    hintSub.textContent = 'No necesitas el nombre exacto — un fragmento identificable del Pliego es suficiente.';
+    filaDeptProv.style.display = 'none';
+  }
+}
+
 // ── UTILIDADES ────────────────────────────────────────────────
 const num    = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const fmtS   = v => (!v || v === 0) ? '—' : 'S/ ' + Number(v).toLocaleString('es-PE', {minimumFractionDigits:0, maximumFractionDigits:0});
@@ -322,6 +379,69 @@ async function fetchMEFCUIs(ejecutora, departamento) {
   const json = await resp.json();
   if (json.error) throw new Error('Error MEF: ' + json.error);
   return json.records || [];
+}
+
+// ── RESOLVER PLIEGO REAL a partir de un fragmento (ej: "AREQUIPA", "EDUCACION") ─
+// Campo confirmado el 2026-07 con CUI 2069629 (GR Áncash): PLIEGO_NOMBRE
+// agrupa las UEs de una entidad. Aquí resolvemos el nombre EXACTO del Pliego
+// con ILIKE, para que el usuario solo escriba un fragmento identificable.
+//
+// NIVEL_GOBIERNO_NOMBRE: 'GOBIERNOS REGIONALES' está confirmado (CUI 2069629).
+// El valor para Gobierno Nacional NO está confirmado todavía — se prueban
+// candidatos en orden. Cuando lo confirmes con un CUI real, avísame para
+// dejar solo el valor correcto.
+const NIVEL_CANDIDATOS = {
+  gore:     ['GOBIERNOS REGIONALES'],
+  nacional: ['GOBIERNO NACIONAL', 'GOBIERNOS NACIONALES', 'GOBIERNO CENTRAL'],
+};
+
+async function resolverPliego(fragmento, modo) {
+  const candidatos = NIVEL_CANDIDATOS[modo];
+  let ultimoIntento = null;
+
+  for (const nivel of candidatos) {
+    const sql = `SELECT DISTINCT "PLIEGO_NOMBRE" FROM "${RESOURCE_ID}" WHERE "PLIEGO_NOMBRE" ILIKE '%${fragmento}%' AND "NIVEL_GOBIERNO_NOMBRE"='${nivel}' AND "ANO_EJE"='${ANO}' LIMIT 10`;
+    const resp = await fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`);
+    const json = await resp.json();
+    if (json.error) { ultimoIntento = json.error; continue; }
+    const opciones = (json.records || []).map(r => r.PLIEGO_NOMBRE).filter(Boolean);
+    if (opciones.length > 0) {
+      if (modo === 'nacional') console.info(`[Nacional] Valor de NIVEL_GOBIERNO_NOMBRE confirmado: "${nivel}"`);
+      if (opciones.length > 1) {
+        throw new Error(
+          `"${fragmento}" coincide con más de un Pliego:\n\n` +
+          opciones.map(o => `• ${o}`).join('\n') +
+          `\n\nEscribe algo más específico para identificar solo uno.`
+        );
+      }
+      return { pliego: opciones[0], nivel };
+    }
+  }
+
+  throw new Error(
+    `No se encontró ningún Pliego que coincida con "${fragmento}"${modo==='nacional' ? ' a nivel nacional' : ''}.\n\n` +
+    `Verifica el nombre (sin tildes, en mayúsculas).` +
+    (modo === 'nacional' ? `\n\nSi el nombre es correcto, es posible que el valor de NIVEL_GOBIERNO_NOMBRE para nivel nacional no sea ninguno de los probados (${candidatos.join(', ')}) — avísame para confirmarlo con un CUI real.` : '') +
+    (ultimoIntento ? `\n\nÚltimo error: ${ultimoIntento}` : '')
+  );
+}
+
+// ── API: Datos Abiertos MEF → TODAS las UE de un Pliego (GORE o Nacional) ─
+// Campo confirmado el 2026-07 con CUI 2069629 (GR Áncash):
+// "PLIEGO_NOMBRE" agrupa correctamente todas las Unidades Ejecutoras
+// de una entidad (ej. 38 UEs bajo 'GOBIERNO REGIONAL DEL DEPARTAMENTO
+// DE ANCASH'). No depende del nivel de gobierno — funciona igual para
+// un ministerio (Nacional) que para un gobierno regional.
+async function fetchMEFCUIsPorPliego(pliegoExacto) {
+  const sql = `SELECT "PRODUCTO_PROYECTO","EJECUTORA_NOMBRE","MONTO_PIM","MONTO_CERTIFICADO","MONTO_COMPROMETIDO_ANUAL","MONTO_DEVENGADO" FROM "${RESOURCE_ID}" WHERE "PLIEGO_NOMBRE"='${pliegoExacto}' AND "ANO_EJE"='${ANO}' LIMIT 32000`;
+  const resp = await fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`);
+  if (!resp.ok) throw new Error(`Datos Abiertos MEF respondió ${resp.status}`);
+  const json = await resp.json();
+  if (json.error) throw new Error('Error MEF: ' + json.error);
+  if (!json.records || json.records.length === 0) {
+    throw new Error(`No se encontraron inversiones para "${pliegoExacto}" en ${ANO}.`);
+  }
+  return json.records;
 }
 
 // ── API: SSI-MEF → vía Railway ───────────────────────────────
@@ -510,7 +630,7 @@ function agruparMEF(registros) {
     const cui = String(r.PRODUCTO_PROYECTO ?? '').trim();
     if (!cui || cui === '0') continue;
     if (cui.startsWith('3000') || cui.startsWith('3033') || cui.startsWith('3999')) continue;
-    if (!map.has(cui)) map.set(cui, { pim:0, certificado:0, comprometido:0, devengado:0 });
+    if (!map.has(cui)) map.set(cui, { pim:0, certificado:0, comprometido:0, devengado:0, ue: r.EJECUTORA_NOMBRE ? String(r.EJECUTORA_NOMBRE).trim() : null });
     const a = map.get(cui);
     a.pim          += num(r.MONTO_PIM);
     a.certificado  += num(r.MONTO_CERTIFICADO);
@@ -526,7 +646,12 @@ async function fetchRanking(ejecutora, departamento, provincia) {
   try {
     // GROUP BY en la query — un registro por ejecutora, evita filas duplicadas y queries pesadas
     const sqlDept = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID}" WHERE "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}' AND "ANO_EJE"='${ANO}' GROUP BY "EJECUTORA_NOMBRE"`;
-    const sqlNac  = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID}" WHERE "TIPO_GOBIERNO_NOMBRE"='GOBIERNOS LOCALES' AND "ANO_EJE"='${ANO}' AND "EJECUTORA_NOMBRE" ILIKE '%PROVINCIAL%' GROUP BY "EJECUTORA_NOMBRE"`;
+    // FIX 2026-07: el campo "TIPO_GOBIERNO_NOMBRE" no existe en este recurso CKAN
+    // (confirmado al verificar campos para el modo GORE) — el campo real es
+    // "NIVEL_GOBIERNO_NOMBRE". Antes de este fix, esta query fallaba silenciosamente
+    // (atrapada por el .catch(()=>({records:[]})) de abajo) y el ranking "Nacional · Prov."
+    // siempre venía vacío.
+    const sqlNac  = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID}" WHERE "NIVEL_GOBIERNO_NOMBRE"='GOBIERNOS LOCALES' AND "ANO_EJE"='${ANO}' AND "EJECUTORA_NOMBRE" ILIKE '%PROVINCIAL%' GROUP BY "EJECUTORA_NOMBRE"`;
     const withTimeout = (p, ms) => Promise.race([p, new Promise((_,r) => setTimeout(() => r(new Error('timeout')), ms))]);
     const [rDept, rNac] = await Promise.all([
       withTimeout(fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlDept)}`).then(r=>r.json()), 9000).catch(()=>({records:[]})),
@@ -564,7 +689,33 @@ async function fetchRanking(ejecutora, departamento, provincia) {
   } catch(e) { return null; }
 }
 
-// ── SLIDE ALCALDE ─────────────────────────────────────────────
+// ── RANKING (nacional, entre pares del mismo nivel de gobierno) ─
+// Compara el Pliego contra todos los demás Pliegos de su mismo nivel
+// (gobiernos regionales entre sí, o entidades nacionales entre sí).
+async function fetchRankingPorNivel(pliegoExacto, nivelGobierno) {
+  try {
+    const sqlNac = `SELECT "PLIEGO_NOMBRE" AS PLIEGO,SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID}" WHERE "NIVEL_GOBIERNO_NOMBRE"='${nivelGobierno}' AND "ANO_EJE"='${ANO}' GROUP BY "PLIEGO_NOMBRE"`;
+    const r = await fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlNac)}`).then(r=>r.json());
+    const listNac = (r.records || [])
+      .map(rec => ({ nombre: String(rec.PLIEGO||'').trim(), pim: num(rec.PIM_TOTAL), dev: num(rec.DEV_TOTAL) }))
+      .filter(rec => rec.nombre && rec.pim > 0)
+      .map(rec => ({ ...rec, pct: rec.dev / rec.pim * 100 }))
+      .sort((a,b) => b.pct - a.pct);
+
+    const idx  = listNac.findIndex(r => r.nombre === pliegoExacto);
+    const pctEj = idx >= 0 ? listNac[idx].pct : 0;
+    const pos   = idx >= 0 ? idx + 1 : null;
+    const prom  = listNac.length ? listNac.reduce((s,r)=>s+r.pct,0)/listNac.length : 0;
+    return {
+      pctEj: pctEj.toFixed(1),
+      prov: null,
+      dept: null,
+      nac:  { pos, total: listNac.length, prom: prom.toFixed(1) },
+    };
+  } catch(e) { return null; }
+}
+
+
 function renderSlideAlcalde(ejecutora, datos) {
   const { total, conAlerta, pimTotal, compTotal, devTotal, certTotal, pctDev, saldoPim, saldoFinanciar,
           rojas, amars, top3, ranking, fechaStr } = datos;
@@ -575,13 +726,13 @@ function renderSlideAlcalde(ejecutora, datos) {
     const pct = pos/total;
     return pct <= 0.25 ? 'bueno' : pct <= 0.50 ? 'medio' : 'normal';
   }
-  function rankBloque(scope, r) {
-    if (!r || !r.total) return `<div class="sl-rank-item"><div class="sl-rank-scope">${scope}</div><div class="sl-rank-de" style="font-size:9px;color:#b0a898;margin-top:4px">Sin datos disponibles</div></div>`;
+  function rankBloque(scope, r, fullWidth) {
+    if (!r || !r.total) return `<div class="sl-rank-item"${fullWidth?' style="grid-column:span 3"':''}><div class="sl-rank-scope">${scope}</div><div class="sl-rank-de" style="font-size:9px;color:#b0a898;margin-top:4px">Sin datos disponibles</div></div>`;
     const col = rankColor(r.pos, r.total);
     const muniW = Math.min(Math.round((parseFloat(datos.pctDev)/100)*100), 100);
     const promW = Math.min(Math.round((parseFloat(r.prom)/100)*100), 100);
     return `
-    <div class="sl-rank-item">
+    <div class="sl-rank-item"${fullWidth?' style="grid-column:span 3"':''}>
       <div class="sl-rank-scope">${scope}</div>
       <div class="sl-rank-pos-row">
         <div class="sl-rank-pos ${col}">${r.pos}°</div>
@@ -616,8 +767,12 @@ function renderSlideAlcalde(ejecutora, datos) {
     </div>`;
   }).join('');
 
+  const esRankingAgregado = ranking && ranking.prov === null && ranking.dept === null;
+  const etiquetaRankingAgregado = MODO === 'nacional' ? 'Nacional · Entidades' : 'Nacional · Regiones';
   const rankingHtml = ranking
-    ? rankBloque('Provincia', ranking.prov) + rankBloque('Región', ranking.dept) + rankBloque('Nacional · Prov.', ranking.nac)
+    ? (esRankingAgregado
+        ? rankBloque(etiquetaRankingAgregado, ranking.nac, true)
+        : rankBloque('Provincia', ranking.prov) + rankBloque('Región', ranking.dept) + rankBloque('Nacional · Prov.', ranking.nac))
     : `<div class="sl-rank-item" style="grid-column:span 3;font-size:9px;color:#b0a898">Ranking no disponible — reintente con conexión estable</div>`;
 
   return `<div class="slide-alcalde">
@@ -718,7 +873,66 @@ function renderSlideAlcalde(ejecutora, datos) {
 }
 
 // ── RENDER ────────────────────────────────────────────────────
-function renderReporte(ejecutora, mefMap, inversiones, ranking) {
+// ── TARJETA DE INVERSIÓN (reutilizable en vista plana y agrupada por UE) ─
+function renderInvCard(inv) {
+  const mef = inv.mefData || {};
+  const ssiUrl = `https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${inv.cui}&tipo=2`;
+  const devAcum = inv.devAcum || 0;
+  const costo   = inv.costo_actualizado || 0;
+  const dev2026 = inv.dev2026 || 0;
+  const pim     = mef.pim || 0;
+  const avFin   = (devAcum > 0 && costo > 0) ? (devAcum / costo * 100) : null;
+  const pendCulm = costo > 0 ? Math.max(0, costo - devAcum) : null;
+  const saldoPimAno = pim - dev2026;
+  const pendFin  = costo > 0 ? Math.max(0, costo - (devAcum + saldoPimAno)) : null;
+
+  return `<div class="inv-card">
+    <div class="inv-top">
+      <div class="inv-nombre">${inv.nombre || 'Sin nombre en SSI'}</div>
+      <a href="${ssiUrl}" target="_blank" class="inv-cui" title="Ver en SSI-MEF" style="text-decoration:none;cursor:pointer">CUI ${inv.cui} ↗</a>
+    </div>
+
+    <div class="inv-grid">
+      <div class="inv-kpi"><div class="inv-kpi-lbl">PIM ${ANO}</div><div class="inv-kpi-val">${fmtS(pim)}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Certificado</div><div class="inv-kpi-val">${fmtS(mef.certificado)}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Comprometido</div><div class="inv-kpi-val">${fmtS(mef.comprometido)}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Devengado ${ANO}</div><div class="inv-kpi-val">${fmtS(dev2026)}</div></div>
+    </div>
+
+    <div class="inv-grid">
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Costo actualizado</div><div class="inv-kpi-val">${costo > 0 ? fmtS(costo) : '—'}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Dev. acumulado</div><div class="inv-kpi-val">${devAcum > 0 ? fmtS(devAcum) : '—'}${avFin !== null ? `<span style="font-size:10px;color:var(--text2);font-weight:400;margin-left:4px">${avFin.toFixed(1)}%</span>` : ''}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Pend. culminar</div><div class="inv-kpi-val ${pendCulm > 0 ? '' : 'muted'}">${pendCulm !== null ? fmtS(pendCulm) : '—'}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Pend. financiar</div><div class="inv-kpi-val ${pendFin > 0 ? '' : 'muted'}">${pendFin !== null && pendFin > 0 ? fmtS(pendFin) : '—'}</div></div>
+    </div>
+
+    <div class="inv-prog">
+      <div class="inv-prog-row">
+        <span class="inv-prog-lbl">Av. físico acum.</span>
+        <div class="inv-prog-bar"><div class="inv-prog-fill fisico" style="width:${Math.min(inv.avance_fisico||0,100)}%"></div></div>
+        <span class="inv-prog-pct">${fmtPct(inv.avance_fisico)}</span>
+      </div>
+      ${avFin !== null ? `<div class="inv-prog-row">
+        <span class="inv-prog-lbl">Av. financiero acum.</span>
+        <div class="inv-prog-bar"><div class="inv-prog-fill financiero" style="width:${Math.min(avFin,100)}%"></div></div>
+        <span class="inv-prog-pct">${avFin.toFixed(1)}%</span>
+      </div>` : ''}
+    </div>
+
+    <div class="inv-footer">
+      ${inv.fecha_fin ? `<div class="inv-footer-item">Culminación registrada: <strong>${inv.fecha_fin}</strong></div>` : ''}
+      ${inv.ult_f12b  ? `<div class="inv-footer-item">Último F12B: <strong>${inv.ult_f12b}</strong></div>` : ''}
+      ${inv.estado    ? `<div class="inv-footer-item">Estado: <strong>${inv.estado}</strong></div>` : ''}
+    </div>
+
+    <div class="alertas-row">
+      ${inv.alertas.map(a=>`<span class="badge badge-${a.nivel==='rojo'?'red':'amber'}">${a.titulo}</span>`).join('')}
+    </div>
+    ${inv.alertas.map(a=>`<div class="alerta-desc">${a.desc}</div>`).join('')}
+  </div>`;
+}
+
+function renderReporte(ejecutora, mefMap, inversiones, ranking, porUE) {
   const total = mefMap.size;
   const conAl = inversiones.filter(i => i.alertas.length > 0);
   const rojas = inversiones.filter(i => i.alertas.some(a => a.nivel === 'rojo'));
@@ -737,15 +951,6 @@ function renderReporte(ejecutora, mefMap, inversiones, ranking) {
     const saldo = (inv.costo_actualizado || 0) - (inv.devAcum || 0);
     return s + (saldo > 0 ? saldo : 0);
   }, 0);
-
-  const ordenadas = [...inversiones].sort((a, b) => {
-    const rA = a.alertas.filter(x => x.nivel==='rojo').length;
-    const rB = b.alertas.filter(x => x.nivel==='rojo').length;
-    if (rB !== rA) return rB - rA;
-    if (b.alertas.length !== a.alertas.length) return b.alertas.length - a.alertas.length;
-    return (b.mefData?.pim||0) - (a.mefData?.pim||0);
-  });
-  const topAlertas = ordenadas.filter(i => i.alertas.length > 0).slice(0, 10);
 
   const fechaStr = HOY.toLocaleDateString('es-PE', { day:'numeric', month:'long', year:'numeric' });
 
@@ -797,75 +1002,75 @@ function renderReporte(ejecutora, mefMap, inversiones, ranking) {
     </div>
   </div>`;
 
-  if (topAlertas.length === 0) {
+  if (conAl.length === 0) {
     html += `<div class="section">
       <div class="section-head"><h3>Sin alertas detectadas con los datos disponibles</h3></div>
       <div style="padding:20px 18px;font-size:13px;color:var(--text2)">
         No se encontraron las condiciones de alerta en las inversiones activas.
       </div></div>`;
+  } else if (porUE) {
+    // ── Agrupado por Unidad Ejecutora (modo Gobierno Regional) ──
+    const grupos = new Map(); // ue -> [inversiones]
+    for (const inv of conAl) {
+      const ue = inv.mefData?.ue || inv.ue || 'Unidad Ejecutora no identificada';
+      if (!grupos.has(ue)) grupos.set(ue, []);
+      grupos.get(ue).push(inv);
+    }
+    const gruposOrdenados = Array.from(grupos.entries()).sort((a, b) => {
+      const rojasA = a[1].filter(i => i.alertas.some(x => x.nivel === 'rojo')).length;
+      const rojasB = b[1].filter(i => i.alertas.some(x => x.nivel === 'rojo')).length;
+      if (rojasB !== rojasA) return rojasB - rojasA;
+      return b[1].length - a[1].length;
+    });
+
+    html += `<div class="section">
+      <div class="section-head">
+        <h3>Inversiones con alertas — por Unidad Ejecutora</h3>
+        <span class="count">${conAl.length} inversiones en ${gruposOrdenados.length} UE${gruposOrdenados.length!==1?'s':''}</span>
+      </div>`;
+    for (const [ue, invsUE] of gruposOrdenados) {
+      const rojasUE = invsUE.filter(i => i.alertas.some(x => x.nivel === 'rojo')).length;
+      const amarUE  = invsUE.length - rojasUE;
+      const pimUE   = invsUE.reduce((s,i) => s + (i.mefData?.pim || 0), 0);
+      const ordenUE = [...invsUE].sort((a, b) => {
+        const rA = a.alertas.filter(x => x.nivel==='rojo').length;
+        const rB = b.alertas.filter(x => x.nivel==='rojo').length;
+        if (rB !== rA) return rB - rA;
+        return (b.mefData?.pim||0) - (a.mefData?.pim||0);
+      });
+      html += `<details class="ue-group">
+        <summary class="ue-summary">
+          <div class="ue-summary-left">
+            <span class="ue-caret">▶</span>
+            <div>
+              <div class="ue-nombre">${ue}</div>
+              <div class="ue-meta">${invsUE.length} inversión${invsUE.length!==1?'es':''} con alerta · PIM ${ANO}: ${fmtS(pimUE)}</div>
+            </div>
+          </div>
+          <div class="ue-badges">
+            ${rojasUE > 0 ? `<span class="badge badge-red">🔴 ${rojasUE}</span>` : ''}
+            ${amarUE  > 0 ? `<span class="badge badge-amber">🟡 ${amarUE}</span>` : ''}
+          </div>
+        </summary>
+        ${ordenUE.map(inv => renderInvCard(inv)).join('')}
+      </details>`;
+    }
+    html += `</div>`;
   } else {
+    const ordenadas = [...inversiones].sort((a, b) => {
+      const rA = a.alertas.filter(x => x.nivel==='rojo').length;
+      const rB = b.alertas.filter(x => x.nivel==='rojo').length;
+      if (rB !== rA) return rB - rA;
+      if (b.alertas.length !== a.alertas.length) return b.alertas.length - a.alertas.length;
+      return (b.mefData?.pim||0) - (a.mefData?.pim||0);
+    });
+    const topAlertas = ordenadas.filter(i => i.alertas.length > 0).slice(0, 10);
     html += `<div class="section">
       <div class="section-head">
         <h3>Inversiones con alertas</h3>
         <span class="count">${topAlertas.length === conAl.length ? `${conAl.length} en total` : `Top ${topAlertas.length} de ${conAl.length} con alertas`}</span>
       </div>`;
-    for (const inv of topAlertas) {
-      const mef = inv.mefData || {};
-      const ssiUrl = `https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${inv.cui}&tipo=2`;
-      const devAcum = inv.devAcum || 0;
-      const costo   = inv.costo_actualizado || 0;
-      const dev2026 = inv.dev2026 || 0;
-      const pim     = mef.pim || 0;
-      const avFin   = (devAcum > 0 && costo > 0) ? (devAcum / costo * 100) : null;
-      const pendCulm = costo > 0 ? Math.max(0, costo - devAcum) : null;
-      const saldoPimAno = pim - dev2026;
-      const pendFin  = costo > 0 ? Math.max(0, costo - (devAcum + saldoPimAno)) : null;
-
-      html += `<div class="inv-card">
-        <div class="inv-top">
-          <div class="inv-nombre">${inv.nombre || 'Sin nombre en SSI'}</div>
-          <a href="${ssiUrl}" target="_blank" class="inv-cui" title="Ver en SSI-MEF" style="text-decoration:none;cursor:pointer">CUI ${inv.cui} ↗</a>
-        </div>
-
-        <div class="inv-grid">
-          <div class="inv-kpi"><div class="inv-kpi-lbl">PIM ${ANO}</div><div class="inv-kpi-val">${fmtS(pim)}</div></div>
-          <div class="inv-kpi"><div class="inv-kpi-lbl">Certificado</div><div class="inv-kpi-val">${fmtS(mef.certificado)}</div></div>
-          <div class="inv-kpi"><div class="inv-kpi-lbl">Comprometido</div><div class="inv-kpi-val">${fmtS(mef.comprometido)}</div></div>
-          <div class="inv-kpi"><div class="inv-kpi-lbl">Devengado ${ANO}</div><div class="inv-kpi-val">${fmtS(dev2026)}</div></div>
-        </div>
-
-        <div class="inv-grid">
-          <div class="inv-kpi"><div class="inv-kpi-lbl">Costo actualizado</div><div class="inv-kpi-val">${costo > 0 ? fmtS(costo) : '—'}</div></div>
-          <div class="inv-kpi"><div class="inv-kpi-lbl">Dev. acumulado</div><div class="inv-kpi-val">${devAcum > 0 ? fmtS(devAcum) : '—'}${avFin !== null ? `<span style="font-size:10px;color:var(--text2);font-weight:400;margin-left:4px">${avFin.toFixed(1)}%</span>` : ''}</div></div>
-          <div class="inv-kpi"><div class="inv-kpi-lbl">Pend. culminar</div><div class="inv-kpi-val ${pendCulm > 0 ? '' : 'muted'}">${pendCulm !== null ? fmtS(pendCulm) : '—'}</div></div>
-          <div class="inv-kpi"><div class="inv-kpi-lbl">Pend. financiar</div><div class="inv-kpi-val ${pendFin > 0 ? '' : 'muted'}">${pendFin !== null && pendFin > 0 ? fmtS(pendFin) : '—'}</div></div>
-        </div>
-
-        <div class="inv-prog">
-          <div class="inv-prog-row">
-            <span class="inv-prog-lbl">Av. físico acum.</span>
-            <div class="inv-prog-bar"><div class="inv-prog-fill fisico" style="width:${Math.min(inv.avance_fisico||0,100)}%"></div></div>
-            <span class="inv-prog-pct">${fmtPct(inv.avance_fisico)}</span>
-          </div>
-          ${avFin !== null ? `<div class="inv-prog-row">
-            <span class="inv-prog-lbl">Av. financiero acum.</span>
-            <div class="inv-prog-bar"><div class="inv-prog-fill financiero" style="width:${Math.min(avFin,100)}%"></div></div>
-            <span class="inv-prog-pct">${avFin.toFixed(1)}%</span>
-          </div>` : ''}
-        </div>
-
-        <div class="inv-footer">
-          ${inv.fecha_fin ? `<div class="inv-footer-item">Culminación registrada: <strong>${inv.fecha_fin}</strong></div>` : ''}
-          ${inv.ult_f12b  ? `<div class="inv-footer-item">Último F12B: <strong>${inv.ult_f12b}</strong></div>` : ''}
-          ${inv.estado    ? `<div class="inv-footer-item">Estado: <strong>${inv.estado}</strong></div>` : ''}
-        </div>
-
-        <div class="alertas-row">
-          ${inv.alertas.map(a=>`<span class="badge badge-${a.nivel==='rojo'?'red':'amber'}">${a.titulo}</span>`).join('')}
-        </div>
-        ${inv.alertas.map(a=>`<div class="alerta-desc">${a.desc}</div>`).join('')}
-      </div>`;
-    }
+    html += topAlertas.map(inv => renderInvCard(inv)).join('');
     html += `</div>`;
   }
 
@@ -904,7 +1109,7 @@ function enviarWhatsApp(ejecutora, rojas, amars, total, pimStr, devStr, pctDev) 
 // ── HISTORIAL ────────────────────────────────────────────────
 function guardarHistorial(ejecutora, total, alertas) {
   const hist = JSON.parse(localStorage.getItem('ec_historial') || '[]');
-  hist.unshift({ ejecutora, fecha: HOY.toISOString(), total, alertas });
+  hist.unshift({ ejecutora, fecha: HOY.toISOString(), total, alertas, modo: MODO });
   localStorage.setItem('ec_historial', JSON.stringify(hist.slice(0,20)));
   renderHistorial();
 }
@@ -915,7 +1120,8 @@ function renderHistorial() {
   if (!hist.length) { el.innerHTML = '<span class="hist-empty">Aún no hay diagnósticos generados.</span>'; return; }
   el.innerHTML = hist.map(h => {
     const f = new Date(h.fecha).toLocaleDateString('es-PE', { day:'numeric', month:'short', year:'numeric' });
-    return `<div class="hist-item"><span>${h.ejecutora}</span><span>${h.total} inv · ${h.alertas} alertas · ${f}</span></div>`;
+    const icono = h.modo === 'gore' ? '🗺' : h.modo === 'nacional' ? '🏢' : '🏛';
+    return `<div class="hist-item"><span>${icono} ${h.ejecutora}</span><span>${h.total} inv · ${h.alertas} alertas · ${f}</span></div>`;
   }).join('');
 }
 
@@ -930,13 +1136,14 @@ async function logBackend(ejecutora, total, alertas) {
 
 // ── FLUJO PRINCIPAL ───────────────────────────────────────────
 async function iniciarDiagnostico() {
-  const ejecutora    = document.getElementById('inputEjecutora').value.trim().toUpperCase();
-  const departamento = document.getElementById('inputDepartamento').value.trim().toUpperCase() || null;
-  const provincia    = document.getElementById('inputProvincia').value.trim().toUpperCase() || null;
+  const esAgregado    = MODO === 'gore' || MODO === 'nacional'; // requiere resolver Pliego
+  const ejecutora      = document.getElementById('inputEjecutora').value.trim().toUpperCase();
+  const departamento   = document.getElementById('inputDepartamento').value.trim().toUpperCase() || null;
+  const provincia      = document.getElementById('inputProvincia').value.trim().toUpperCase() || null;
 
-  if (!ejecutora || ejecutora.length < 5) { alert('Ingresa el nombre de la municipalidad ejecutora.'); return; }
-  if (!departamento) { alert('Ingresa el departamento para calcular el ranking comparativo.'); return; }
-  if (!provincia)    { alert('Ingresa la provincia para calcular el ranking comparativo.'); return; }
+  if (!ejecutora || ejecutora.length < 3) { alert(esAgregado ? 'Ingresa un fragmento del nombre a buscar.' : 'Ingresa el nombre de la municipalidad ejecutora.'); return; }
+  if (!esAgregado && !departamento) { alert('Ingresa el departamento para calcular el ranking comparativo.'); return; }
+  if (!esAgregado && !provincia)    { alert('Ingresa la provincia para calcular el ranking comparativo.'); return; }
 
   document.getElementById('errorBox').style.display  = 'none';
   document.getElementById('resultado').style.display = 'none';
@@ -945,12 +1152,24 @@ async function iniciarDiagnostico() {
   document.getElementById('btnBuscar').disabled      = true;
 
   try {
-    setLoading('Buscando inversiones en Datos Abiertos MEF...', `Ejecutora: ${ejecutora}`);
-    const registros = await fetchMEFCUIs(ejecutora, departamento);
+    let nombreEntidad = ejecutora; // para muni queda igual; para GORE/Nacional se reemplaza por el Pliego exacto
+    let nivelGobierno = null;
+
+    if (esAgregado) {
+      setLoading('Identificando la entidad...', `Buscando Pliego que coincida con: ${ejecutora}`);
+      const resuelto = await resolverPliego(ejecutora, MODO);
+      nombreEntidad = resuelto.pliego;
+      nivelGobierno = resuelto.nivel;
+    }
+
+    setLoading(esAgregado ? 'Buscando inversiones de todas las UE en Datos Abiertos MEF...' : 'Buscando inversiones en Datos Abiertos MEF...', `${esAgregado ? 'Pliego' : 'Ejecutora'}: ${nombreEntidad}`);
+    const registros = esAgregado
+      ? await fetchMEFCUIsPorPliego(nombreEntidad)
+      : await fetchMEFCUIs(nombreEntidad, departamento);
 
     if (!registros || registros.length === 0) {
       throw new Error(
-        `No se encontraron inversiones para "${ejecutora}"${departamento ? ` en ${departamento}` : ''}.\n\n` +
+        `No se encontraron inversiones para "${nombreEntidad}"${departamento ? ` en ${departamento}` : ''}.\n\n` +
         `Verifica que el nombre sea exactamente como figura en el MEF (todo en mayúsculas, sin tildes).`
       );
     }
@@ -958,10 +1177,29 @@ async function iniciarDiagnostico() {
     const mefMap = agruparMEF(registros);
     const cuis   = Array.from(mefMap.keys());
 
-    setLoading(`${cuis.length} inversiones encontradas — consultando SSI-MEF...`, 'Obteniendo F12B y estado de ejecución');
+    if (esAgregado) {
+      const ues = new Set(Array.from(mefMap.values()).map(m => m.ue).filter(Boolean));
+      // Aviso de volumen alto — sobre todo relevante en Nacional, donde un
+      // ministerio grande puede tener miles de inversiones.
+      if (cuis.length > 600) {
+        document.getElementById('loading').style.display = 'none';
+        const minutosEstimados = Math.ceil(cuis.length / (MODO === 'nacional' ? 10 : 8) * 0.4 / 60);
+        const continuar = confirm(
+          `"${nombreEntidad}" tiene ${cuis.length} inversiones en ${ues.size} Unidades Ejecutoras.\n\n` +
+          `Esto puede tardar aproximadamente ${minutosEstimados} minutos en consultar SSI-MEF una por una.\n\n` +
+          `¿Continuar?`
+        );
+        if (!continuar) { document.getElementById('btnBuscar').disabled = false; return; }
+        document.getElementById('loading').style.display = 'block';
+      }
+      setLoading(`${cuis.length} inversiones encontradas en ${ues.size} Unidades Ejecutoras`, 'Consultando SSI-MEF — con este volumen puede tardar varios minutos');
+    } else {
+      setLoading(`${cuis.length} inversiones encontradas — consultando SSI-MEF...`, 'Obteniendo F12B y estado de ejecución');
+    }
 
     const inversiones = [];
-    const LOTE = 6;
+    const LOTE = MODO === 'nacional' ? 10 : (MODO === 'gore' ? 8 : 6);
+    const PAUSA_MS = esAgregado ? 300 : 500;
 
     for (let i = 0; i < cuis.length; i += LOTE) {
       const lote = cuis.slice(i, i + LOTE);
@@ -977,18 +1215,20 @@ async function iniciarDiagnostico() {
         if (ssi.estado && ssi.estado.toUpperCase().includes('NO REGISTRADO') && (ssi.costo_actualizado||0)===0) continue;
         inversiones.push({ ...ssi, mefData: mef, alertas: evaluarAlertas(ssi, mef) });
       }
-      if (i + LOTE < cuis.length) await new Promise(r => setTimeout(r, 500));
+      if (i + LOTE < cuis.length) await new Promise(r => setTimeout(r, PAUSA_MS));
     }
 
     document.getElementById('loading').style.display = 'none';
     const totalAlertas = inversiones.reduce((s,i) => s + i.alertas.length, 0);
-    setLoading('Calculando ranking...', 'Comparando con municipalidades del departamento y del país');
+    setLoading('Calculando ranking...', esAgregado ? `Comparando con otras entidades de nivel ${MODO === 'nacional' ? 'nacional' : 'regional'}` : 'Comparando con municipalidades del departamento y del país');
     document.getElementById('loading').style.display = 'block';
-    const ranking = await fetchRanking(ejecutora, departamento, provincia);
+    const ranking = esAgregado
+      ? await fetchRankingPorNivel(nombreEntidad, nivelGobierno)
+      : await fetchRanking(nombreEntidad, departamento, provincia);
     document.getElementById('loading').style.display = 'none';
-    renderReporte(ejecutora, mefMap, inversiones, ranking);
-    guardarHistorial(ejecutora, mefMap.size, totalAlertas);
-    logBackend(ejecutora, mefMap.size, totalAlertas);
+    renderReporte(nombreEntidad, mefMap, inversiones, ranking, esAgregado);
+    guardarHistorial(nombreEntidad, mefMap.size, totalAlertas);
+    logBackend(nombreEntidad, mefMap.size, totalAlertas);
 
   } catch(e) {
     document.getElementById('loading').style.display = 'none';
@@ -1006,8 +1246,15 @@ document.getElementById('inputEjecutora').addEventListener('keydown', e => {
 
 // ── GENERAR PDF ──────────────────────────────────────────────────
 function imprimirReporte() {
-  const contenido = document.getElementById('resultado').innerHTML;
+  const resultadoEl = document.getElementById('resultado');
+  const detallesUE = Array.from(resultadoEl.querySelectorAll('details.ue-group'));
+  const estadoPrevio = detallesUE.map(d => d.open);
+  detallesUE.forEach(d => d.open = true);
+
+  const contenido = resultadoEl.innerHTML;
   const ejecutora = document.querySelector('.report-muni')?.textContent || '';
+
+  detallesUE.forEach((d, i) => d.open = estadoPrevio[i]);
 
   const ventana = window.open('', '_blank');
   ventana.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>ExpedienteCheck</title><style>' +
@@ -1053,6 +1300,14 @@ function imprimirReporte() {
     '.badge-green{background:#D1FAE5;color:#065F46;}' +
     '.alerta-desc{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;background:#f8f4ef;border-radius:6px;padding:8px 10px;}' +
     '.no-print,.actions{display:none!important;}' +
+    'details.ue-group{display:block;border-bottom:1px solid var(--border);}' +
+    '.ue-summary{list-style:none;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#faf7f2;}' +
+    '.ue-summary::-webkit-details-marker{display:none;}' +
+    '.ue-summary-left{display:flex;align-items:center;gap:8px;}' +
+    '.ue-caret{display:none;}' +
+    '.ue-nombre{font-size:11px;font-weight:700;color:var(--navy);}' +
+    '.ue-meta{font-size:9px;color:var(--text2);margin-top:2px;}' +
+    '.ue-badges{display:flex;gap:6px;}' +
     '.slide-alcalde{display:flex!important;flex-direction:column;gap:14px;background:#F4EFE7;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:22px 26px 20px;border:1px solid #e0d8cc;margin-bottom:16px;page-break-after:always;}' +
     '.sl-top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0B2341;padding-bottom:10px;}' +
     '.sl-brand{font-size:9px;font-weight:700;color:#D4A62A;letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px;}' +
