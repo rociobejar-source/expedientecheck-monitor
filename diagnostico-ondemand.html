@@ -432,16 +432,37 @@ async function resolverPliego(fragmento, modo) {
 // de una entidad (ej. 38 UEs bajo 'GOBIERNO REGIONAL DEL DEPARTAMENTO
 // DE ANCASH'). No depende del nivel de gobierno — funciona igual para
 // un ministerio (Nacional) que para un gobierno regional.
+// FIX 2026-07: la query original tenía LIMIT 32000 SIN ORDER BY.
+// Para Pliegos grandes (ej. GR Áncash: 70,164 filas crudas) esto
+// truncaba los datos silenciosamente, y al no haber ORDER BY,
+// Postgres no garantiza qué subconjunto de filas entra en el LIMIT
+// — dos corridas de la misma query podían devolver totales de PIM
+// distintos. Confirmado con diagnostico-gore-ancash-v3.js: paginando
+// con ORDER BY + OFFSET, el PIM total pasó de S/312-495M (variable
+// según la corrida) a S/807.8M, en línea con el navegador MEF
+// (S/784.3M). Ver también fetchMEFCUIs() — esa función no está
+// paginada porque opera a nivel de una sola Ejecutora (volumen
+// mucho menor) y no se ha diagnosticado el mismo problema ahí.
+const PLIEGO_PAGE_SIZE  = 32000;
+const PLIEGO_MAX_PAGINAS = 20; // salvavidas — hasta ~640,000 filas
+
 async function fetchMEFCUIsPorPliego(pliegoExacto) {
-  const sql = `SELECT "PRODUCTO_PROYECTO","EJECUTORA_NOMBRE","MONTO_PIM","MONTO_CERTIFICADO","MONTO_COMPROMETIDO_ANUAL","MONTO_DEVENGADO" FROM "${RESOURCE_ID}" WHERE "PLIEGO_NOMBRE"='${pliegoExacto}' AND "ANO_EJE"='${ANO}' LIMIT 32000`;
-  const resp = await fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`);
-  if (!resp.ok) throw new Error(`Datos Abiertos MEF respondió ${resp.status}`);
-  const json = await resp.json();
-  if (json.error) throw new Error('Error MEF: ' + json.error);
-  if (!json.records || json.records.length === 0) {
+  let registros = [];
+  for (let pagina = 0; pagina < PLIEGO_MAX_PAGINAS; pagina++) {
+    const offset = pagina * PLIEGO_PAGE_SIZE;
+    const sql = `SELECT "PRODUCTO_PROYECTO","EJECUTORA_NOMBRE","MONTO_PIM","MONTO_CERTIFICADO","MONTO_COMPROMETIDO_ANUAL","MONTO_DEVENGADO" FROM "${RESOURCE_ID}" WHERE "PLIEGO_NOMBRE"='${pliegoExacto}' AND "ANO_EJE"='${ANO}' ORDER BY "PRODUCTO_PROYECTO" LIMIT ${PLIEGO_PAGE_SIZE} OFFSET ${offset}`;
+    const resp = await fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`);
+    if (!resp.ok) throw new Error(`Datos Abiertos MEF respondió ${resp.status}`);
+    const json = await resp.json();
+    if (json.error) throw new Error('Error MEF: ' + json.error);
+    const pageRecords = json.records || [];
+    registros = registros.concat(pageRecords);
+    if (pageRecords.length < PLIEGO_PAGE_SIZE) break; // última página
+  }
+  if (registros.length === 0) {
     throw new Error(`No se encontraron inversiones para "${pliegoExacto}" en ${ANO}.`);
   }
-  return json.records;
+  return registros;
 }
 
 // ── API: SSI-MEF → vía Railway ───────────────────────────────
@@ -629,7 +650,17 @@ function agruparMEF(registros) {
   for (const r of registros) {
     const cui = String(r.PRODUCTO_PROYECTO ?? '').trim();
     if (!cui || cui === '0') continue;
-    if (cui.startsWith('3000') || cui.startsWith('3033') || cui.startsWith('3999')) continue;
+    // FIX 2026-07: excluir por prefijos exactos (3000/3033/3999) dejaba pasar
+    // otros códigos "3xxxxxx" (ej. 3043959, 3000814...) que también son
+    // clasificaciones presupuestales genéricas, no inversiones reales.
+    // Confirmado con diagnostico-gore-ancash-v5.js sobre el GR Áncash: TODOS
+    // los CUIs reales de esta tabla son de 7 dígitos y empiezan en "2"; los
+    // que empiezan en "3" sumaban S/23.5M de más. Con esta regla el total
+    // coincidió EXACTO (diferencia S/0) contra Consulta Amigable MEF.
+    // Nota: si en el futuro la numeración de CUIs supera los 2,999,999 y
+    // empieza a usar prefijo "3" para inversiones reales, esta regla habría
+    // que revisarla — hoy (jul-2026) los CUIs activos rondan 2.6-2.7 millones.
+    if (!(cui.length === 7 && cui.startsWith('2'))) continue;
     if (!map.has(cui)) map.set(cui, { pim:0, certificado:0, comprometido:0, devengado:0, ue: r.EJECUTORA_NOMBRE ? String(r.EJECUTORA_NOMBRE).trim() : null });
     const a = map.get(cui);
     a.pim          += num(r.MONTO_PIM);
