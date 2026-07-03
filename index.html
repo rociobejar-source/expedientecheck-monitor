@@ -6,6 +6,7 @@
   <title>ExpedienteCheck · Monitor de Obras</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     :root {
       --bg:        #f0ede6;
@@ -745,6 +746,158 @@
     }
     .pp-tab-btn.active { background: var(--header); border-color: var(--header); color: #fff; }
     .pp-tab-btn:hover:not(.active) { border-color: var(--text); color: var(--text); }
+
+    /* ── WHATSAPP ── */
+    .wa-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+    .wa-input {
+      flex: 1; min-width: 220px; max-width: 320px; padding: 9px 12px;
+      border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+      font-family: var(--sans); outline: none;
+    }
+    .wa-input:focus { border-color: var(--header); }
+    .btn-wa {
+      background: #25D366; color: #fff; border: none; padding: 9px 18px;
+      border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .btn-wa:hover { opacity: .88; }
+
+    /* ══════════════════════════════════════════════════════════
+       DIAGNÓSTICO PDF — estilos del reporte generado por
+       generarDiagnosticoPDF() / html2pdf. Viven en un contenedor
+       fuera de pantalla (#diag-pdf-container), nunca se ven en el
+       monitor en sí. Nombres de clase verificados sin colisión con
+       el resto del CSS de esta página (ej: badge-red/badge-amber
+       en vez de .badge, que ya existe con otro diseño).
+       ══════════════════════════════════════════════════════════ */
+    /* El overlay se muestra en pantalla de verdad mientras se genera el PDF
+       (html2canvas no captura bien contenido escondido con left:-99999px u
+       otros trucos fuera de pantalla — necesita layout real en el viewport). */
+    #diag-pdf-overlay {
+      display: none; position: fixed; inset: 0; z-index: 99999;
+      background: #F4EFE7; overflow-y: auto;
+    }
+    #diag-pdf-overlay-msg {
+      text-align: center; font-size: 12px; color: #8a8074; padding: 14px 0 0;
+      text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+    }
+    #diag-pdf-container { max-width: 800px; margin: 0 auto; padding: 12px 20px 40px; background: #F4EFE7; }
+    #diag-pdf-container .report-header { background: #0B2341; border-radius: 12px; padding: 22px 24px; margin-bottom: 16px; color: #fff; }
+    #diag-pdf-container .report-muni { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    #diag-pdf-container .report-sub { font-size: 12px; color: rgba(255,255,255,.55); margin-bottom: 16px; }
+    #diag-pdf-container .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+    #diag-pdf-container .kpi { background: rgba(255,255,255,.08); border-radius: 8px; padding: 12px 14px; }
+    #diag-pdf-container .kpi-val { font-size: 20px; font-weight: 700; color: #fff; line-height: 1; }
+    #diag-pdf-container .kpi-lbl { font-size: 10px; color: rgba(255,255,255,.5); margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
+    #diag-pdf-container .section { background: #fff; border-radius: 12px; border: 1px solid #e0d9ce; margin-bottom: 16px; overflow: hidden; }
+    #diag-pdf-container .section-head { padding: 14px 18px; border-bottom: 1px solid #e0d9ce; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #diag-pdf-container .section-head h3 { font-size: 14px; font-weight: 600; color: #0B2341; }
+    #diag-pdf-container .section-head .count { background: #0B2341; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+    #diag-pdf-container .inv-card { padding: 16px 18px; border-bottom: 1px solid #f0ebe3; }
+    #diag-pdf-container .inv-card:last-child { border-bottom: none; }
+    #diag-pdf-container .inv-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    #diag-pdf-container .inv-nombre { font-size: 13px; font-weight: 600; color: #1C1C1C; line-height: 1.4; flex: 1; }
+    #diag-pdf-container .inv-cui { font-size: 11px; color: #5a5a5a; font-family: monospace; background: #f0ebe3; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+    #diag-pdf-container .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
+    #diag-pdf-container .inv-kpi { background: #f8f4ef; border-radius: 6px; padding: 8px 10px; }
+    #diag-pdf-container .inv-kpi-lbl { font-size: 10px; color: #5a5a5a; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+    #diag-pdf-container .inv-kpi-val { font-size: 13px; font-weight: 700; color: #1C1C1C; line-height: 1.2; }
+    #diag-pdf-container .inv-prog { margin: 10px 0 8px; display: flex; flex-direction: column; gap: 5px; }
+    #diag-pdf-container .inv-prog-row { display: flex; align-items: center; gap: 8px; }
+    #diag-pdf-container .inv-prog-lbl { font-size: 10px; color: #5a5a5a; width: 130px; flex-shrink: 0; }
+    #diag-pdf-container .inv-prog-bar { flex: 1; height: 6px; background: #e0d9ce; border-radius: 99px; overflow: hidden; }
+    #diag-pdf-container .inv-prog-fill { height: 100%; border-radius: 99px; }
+    #diag-pdf-container .inv-prog-fill.fisico { background: #3b82f6; }
+    #diag-pdf-container .inv-prog-fill.financiero { background: #1D8F6A; }
+    #diag-pdf-container .inv-prog-pct { font-size: 11px; font-weight: 600; color: #1C1C1C; width: 38px; text-align: right; flex-shrink: 0; }
+    #diag-pdf-container .alertas-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
+    #diag-pdf-container .badge-red { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: #FDEAEA; color: #8B1A1A; }
+    #diag-pdf-container .badge-amber { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: #FEF3DC; color: #7A4800; }
+
+    #diag-pdf-container .slide-alcalde { display: flex; flex-direction: column; gap: 14px; background: #F4EFE7; padding: 22px 26px 20px; border: 1px solid #e0d8cc; margin-bottom: 16px; border-radius: 12px; page-break-after: always; }
+    #diag-pdf-container .sl-top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0B2341; padding-bottom: 10px; }
+    #diag-pdf-container .sl-brand { font-size: 9px; font-weight: 700; color: #D4A62A; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
+    #diag-pdf-container .sl-title { font-size: 15px; font-weight: 700; color: #0B2341; }
+    #diag-pdf-container .sl-date { font-size: 9px; color: #8a8074; text-align: right; line-height: 1.7; }
+    #diag-pdf-container .sl-kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    #diag-pdf-container .sl-kpi { background: #fff; border: 1px solid #e0d8cc; border-radius: 8px; padding: 10px 12px; }
+    #diag-pdf-container .sl-kpi-n { font-size: 24px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
+    #diag-pdf-container .sl-kpi-n.verde { color: #1D8F6A; }
+    #diag-pdf-container .sl-kpi-n.rojo { color: #D64545; }
+    #diag-pdf-container .sl-kpi-n.oro { color: #B8880E; }
+    #diag-pdf-container .sl-kpi-lbl { font-size: 8px; color: #8a8074; text-transform: uppercase; letter-spacing: .05em; }
+    #diag-pdf-container .sl-kpi-sub { font-size: 9px; color: #5a5248; margin-top: 3px; line-height: 1.4; }
+    #diag-pdf-container .sl-barras { background: #fff; border: 1px solid #e0d8cc; border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+    #diag-pdf-container .sl-bar-hdr { display: flex; justify-content: space-between; font-size: 8px; color: #8a8074; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+    #diag-pdf-container .sl-bar-hdr span:last-child { font-size: 9px; font-weight: 600; color: #0B2341; text-transform: none; letter-spacing: 0; }
+    #diag-pdf-container .sl-bar-row { display: flex; align-items: center; gap: 8px; }
+    #diag-pdf-container .sl-bar-lbl { font-size: 9px; color: #8a8074; width: 80px; flex-shrink: 0; }
+    #diag-pdf-container .sl-bar-track { flex: 1; height: 7px; background: #ede6db; border-radius: 99px; overflow: hidden; }
+    #diag-pdf-container .sl-bar-fill { height: 100%; border-radius: 99px; }
+    #diag-pdf-container .sl-bar-fill.dev { background: #1D8F6A; }
+    #diag-pdf-container .sl-bar-fill.comp { background: #D4A62A; }
+    #diag-pdf-container .sl-bar-fill.cert { background: #b8c8d8; }
+    #diag-pdf-container .sl-bar-pct { font-size: 10px; font-weight: 700; width: 28px; text-align: right; }
+    #diag-pdf-container .sl-bar-pct.verde { color: #1D8F6A; }
+    #diag-pdf-container .sl-bar-pct.oro { color: #B8880E; }
+    #diag-pdf-container .sl-bar-pct.gris { color: #8a8074; }
+    #diag-pdf-container .sl-ranking { background: #fff; border: 1px solid #e0d8cc; border-radius: 8px; padding: 10px 14px; }
+    #diag-pdf-container .sl-rank-hdr { display: flex; justify-content: space-between; font-size: 8px; color: #8a8074; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    #diag-pdf-container .sl-rank-grid { display: grid; gap: 8px; }
+    #diag-pdf-container .sl-rank-item { background: #f8f4ef; border: 1px solid #e0d8cc; border-radius: 6px; padding: 8px 10px; }
+    #diag-pdf-container .sl-rank-scope { font-size: 8px; font-weight: 700; color: #8a8074; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+    #diag-pdf-container .sl-rank-pos-row { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
+    #diag-pdf-container .sl-rank-pos { font-size: 20px; font-weight: 700; line-height: 1; }
+    #diag-pdf-container .sl-rank-pos.bueno { color: #1D8F6A; }
+    #diag-pdf-container .sl-rank-pos.medio { color: #B8880E; }
+    #diag-pdf-container .sl-rank-pos.normal { color: #0B2341; }
+    #diag-pdf-container .sl-rank-de { font-size: 9px; color: #b0a898; }
+    #diag-pdf-container .sl-cmp-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+    #diag-pdf-container .sl-cmp-lbl { font-size: 8px; color: #b0a898; width: 22px; flex-shrink: 0; }
+    #diag-pdf-container .sl-cmp-track { flex: 1; height: 4px; background: #e0d8cc; border-radius: 99px; overflow: hidden; }
+    #diag-pdf-container .sl-cmp-fill { height: 100%; border-radius: 99px; }
+    #diag-pdf-container .sl-cmp-fill.muni { background: #0B2341; }
+    #diag-pdf-container .sl-cmp-fill.prom { background: #D4A62A; opacity: .7; }
+    #diag-pdf-container .sl-cmp-val { font-size: 9px; font-weight: 600; width: 26px; text-align: right; }
+    #diag-pdf-container .sl-cmp-val.muni { color: #0B2341; }
+    #diag-pdf-container .sl-cmp-val.prom { color: #B8880E; }
+    #diag-pdf-container .sl-leg { display: flex; gap: 8px; margin-top: 2px; }
+    #diag-pdf-container .sl-leg-item { display: flex; align-items: center; gap: 3px; font-size: 7.5px; color: #b0a898; }
+    #diag-pdf-container .sl-leg-dot { width: 5px; height: 5px; border-radius: 50%; }
+    #diag-pdf-container .sl-leg-dot.muni { background: #0B2341; }
+    #diag-pdf-container .sl-leg-dot.prom { background: #D4A62A; }
+    #diag-pdf-container .sl-alertas { background: #fff; border: 1px solid #e0d8cc; border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+    #diag-pdf-container .sl-al-total { display: flex; flex-direction: column; gap: 4px; }
+    #diag-pdf-container .sl-al-linea { font-size: 10px; color: #5a5248; display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+    #diag-pdf-container .sl-al-n { font-size: 20px; font-weight: 700; line-height: 1; }
+    #diag-pdf-container .sl-al-n.navy { color: #0B2341; }
+    #diag-pdf-container .sl-al-n.rojo { color: #D64545; }
+    #diag-pdf-container .sl-al-pim { font-size: 8.5px; font-weight: 600; color: #1D8F6A; background: #eaf6f1; border: 1px solid #b8e0d0; border-radius: 3px; padding: 1px 5px; }
+    #diag-pdf-container .sl-al-div { height: 1px; background: #ede6db; }
+    #diag-pdf-container .sl-al-desg { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    #diag-pdf-container .sl-al-tipo { border-radius: 6px; padding: 8px 10px; }
+    #diag-pdf-container .sl-al-tipo.rojo { background: #fdf0f0; border: 1px solid #f0c8c8; }
+    #diag-pdf-container .sl-al-tipo.amber { background: #fdf6e8; border: 1px solid #e8d4a0; }
+    #diag-pdf-container .sl-al-tipo-n { font-size: 18px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
+    #diag-pdf-container .sl-al-tipo.rojo .sl-al-tipo-n { color: #D64545; }
+    #diag-pdf-container .sl-al-tipo.amber .sl-al-tipo-n { color: #B8880E; }
+    #diag-pdf-container .sl-al-tipo-lbl { font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    #diag-pdf-container .sl-al-tipo.rojo .sl-al-tipo-lbl { color: #a03030; }
+    #diag-pdf-container .sl-al-tipo.amber .sl-al-tipo-lbl { color: #8a6010; }
+    #diag-pdf-container .sl-al-tipo-desc { font-size: 8.5px; line-height: 1.4; margin-top: 2px; }
+    #diag-pdf-container .sl-al-tipo.rojo .sl-al-tipo-desc { color: #c06060; }
+    #diag-pdf-container .sl-al-tipo.amber .sl-al-tipo-desc { color: #a07830; }
+    #diag-pdf-container .sl-top3-hdr { font-size: 8.5px; color: #8a8074; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+    #diag-pdf-container .sl-obra { display: flex; align-items: flex-start; gap: 7px; padding: 4px 0; border-bottom: 1px solid #f0ebe3; }
+    #diag-pdf-container .sl-obra:last-child { border-bottom: none; padding-bottom: 0; }
+    #diag-pdf-container .sl-obra-n { font-size: 9px; font-weight: 700; color: #c8c0b4; width: 11px; flex-shrink: 0; }
+    #diag-pdf-container .sl-obra-nom { flex: 1; font-size: 9.5px; color: #2a2420; line-height: 1.3; }
+    #diag-pdf-container .sl-obra-monto { font-size: 9px; color: #8a8074; white-space: nowrap; margin-right: 4px; }
+    #diag-pdf-container .sl-obra-badge { font-size: 8px; font-weight: 700; padding: 1px 6px; border-radius: 99px; white-space: nowrap; }
+    #diag-pdf-container .sl-obra-badge.rojo { background: #fdeaea; color: #a03030; border: 1px solid #f0c8c8; }
+    #diag-pdf-container .sl-obra-badge.amber { background: #fdf6e8; color: #8a6010; border: 1px solid #e8d4a0; }
+    #diag-pdf-container .sl-express { background: #fff8e8; border: 1px solid #e8d4a0; border-radius: 6px; padding: 8px 12px; font-size: 9px; color: #6a5830; line-height: 1.5; }
+    #diag-pdf-container .sl-express strong { color: #8a6010; font-weight: 700; }
+    #diag-pdf-container .sl-footer { display: flex; justify-content: space-between; border-top: 1px solid #e0d8cc; padding-top: 8px; font-size: 8px; color: #b0a898; }
   </style>
 </head>
 <body>
@@ -778,15 +931,22 @@
       <div class="page-subtitle">Datos desde SSI — MEF · <span id="fecha-hoy"></span></div>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap">
-      <a class="btn-actualizar" id="btn-diagnostico" href="diagnostico-ondemand.html" target="_blank" rel="noopener"
-        style="background:var(--surface); color:var(--header); border:1px solid var(--border); text-decoration:none"
-        title="Abre el Diagnóstico Rápido con esta entidad precargada — revisa los campos y genera el PDF desde ahí">
-        📄 Generar diagnóstico PDF
-      </a>
+      <button class="btn-actualizar" id="btn-diagnostico" onclick="generarDiagnosticoPDF()"
+        style="background:var(--surface); color:var(--header); border:1px solid var(--border)"
+        title="Genera el PDF con los indicadores y alertas que ya están cargados en este monitor">
+        📄 <span id="btn-diagnostico-label">Generar diagnóstico PDF</span>
+      </button>
       <button class="btn-actualizar" id="btn-actualizar">
         <span id="icon-refresh">↻</span> Actualizar datos
       </button>
     </div>
+  </div>
+
+  <!-- WHATSAPP -->
+  <div class="wa-bar">
+    <input id="wa-numero" class="wa-input" type="tel"
+      placeholder="Número WhatsApp con código país (ej: 51999888777)" maxlength="15">
+    <button class="btn-wa" onclick="enviarWhatsAppMonitor()">Enviar por WhatsApp</button>
   </div>
 
   <!-- STATS -->
@@ -987,6 +1147,15 @@
 
 <div id="toast"></div>
 
+<!-- Overlay usado por generarDiagnosticoPDF() / html2pdf. Se muestra en
+     pantalla solo mientras se genera el PDF (ver nota en el CSS de arriba
+     sobre por qué html2canvas necesita esto visible de verdad) y se oculta
+     apenas termina la descarga. -->
+<div id="diag-pdf-overlay">
+  <div id="diag-pdf-overlay-msg">Generando tu PDF — esto se cierra solo</div>
+  <div id="diag-pdf-container"></div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════════════
 // CONFIG
@@ -1067,17 +1236,6 @@ async function cargarObras() {
     if (dataEntidad.entidad?.nombre) {
       document.getElementById('entidad-nombre').textContent = dataEntidad.entidad.nombre;
       document.title = `ExpedienteCheck · ${dataEntidad.entidad.nombre}`;
-    }
-
-    // Precarga el Diagnóstico Rápido con esta entidad. El nombre y la región
-    // vienen tal cual de Supabase — pueden no coincidir 100% con el formato
-    // exacto que usa el MEF (EJECUTORA_NOMBRE), así que se dejan editables
-    // en diagnostico-ondemand.html en vez de autoenviar el formulario.
-    if (dataEntidad.entidad) {
-      const diagUrl = new URL('diagnostico-ondemand.html', window.location.href);
-      if (dataEntidad.entidad.nombre) diagUrl.searchParams.set('ejecutora', dataEntidad.entidad.nombre);
-      if (dataEntidad.entidad.region) diagUrl.searchParams.set('departamento', dataEntidad.entidad.region);
-      document.getElementById('btn-diagnostico').href = diagUrl.toString();
     }
 
     const tieneDatosManual = obras.some(o => o.actualizado_manualmente);
@@ -1952,6 +2110,453 @@ document.getElementById('pp-close').addEventListener('click', cerrarPopup);
 document.getElementById('popup-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('popup-overlay')) cerrarPopup();
 });
+
+// ═══════════════════════════════════════════════════════════════
+// DIAGNÓSTICO PDF — usa los datos YA cargados del monitor (obras +
+// kpisEntidad), sin volver a consultar SSI-MEF inversión por inversión
+// como hace diagnostico-ondemand.html. Solo el ranking comparativo
+// hace una consulta en vivo (rápida, 2 queries agregadas a Datos
+// Abiertos MEF), porque compara contra OTRAS municipalidades que no
+// están en los datos ya cargados de esta entidad.
+// ═══════════════════════════════════════════════════════════════
+const RESOURCE_ID_MEF = '615644aa-ef73-4358-b4e0-0c20931632f3';
+
+// Mismo cálculo de alertas por obra que usa la tabla del monitor
+// (renderTabla) — copiado tal cual para no arriesgar el rendering
+// de la tabla ya en producción. Si algún día se corrige un criterio
+// de alerta ahí, hay que replicarlo aquí también.
+function construirAlertasObra(o) {
+  const alertas = [];
+  const cerrada = o.estado_inversion === 'CERRADO';
+  const hoy = new Date();
+  const fis = o.avance_fisico != null ? Number(o.avance_fisico) : null;
+  const fin = o.avance_financiero != null ? Number(o.avance_financiero) : null;
+  const brecha = (fis != null && fin != null) ? (fin - fis) : null;
+  const fechaFin = o.fecha_fin_ejecucion ? new Date(o.fecha_fin_ejecucion) : null;
+  const fechaIni = o.fecha_inicio_ejecucion ? new Date(o.fecha_inicio_ejecucion) : null;
+  const saldoPim = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
+  const saldoFinanc = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
+  const diasParaFin = fechaFin ? Math.ceil((fechaFin - hoy) / 86400000) : null;
+  const mesesIni = fechaIni ? (hoy - fechaIni) / (30 * 86400000) : null;
+
+  if (cerrada) {
+    if (saldoPim > 0) alertas.push({ nivel: 'rojo', texto: 'Cerrada c/saldo PIM' });
+    if (saldoFinanc > 0 && saldoPim <= 0) alertas.push({ nivel: 'amarillo', texto: 'Sin presup. culminar' });
+  } else {
+    if (brecha !== null && brecha > 20) alertas.push({ nivel: 'rojo', texto: 'Brecha >20%' });
+    const _f12b = evaluarF12B(o.ult_fec_decla_estim, o.estado_inversion);
+    if (_f12b.color !== 'verde' && _f12b.label) alertas.push({ nivel: _f12b.color, texto: _f12b.label });
+    if (fechaFin && fechaFin < hoy && (fis || 0) < 100) alertas.push({ nivel: 'rojo', texto: 'Obra atrasada' });
+    if (brecha !== null && brecha > 10 && brecha <= 20) alertas.push({ nivel: 'amarillo', texto: `Brecha ${brecha.toFixed(1)}%` });
+    if (saldoFinanc > 0 && saldoPim <= 0) alertas.push({ nivel: 'amarillo', texto: 'Sin presup. culminar' });
+    if ((Number(o.pim_2026) || 0) > 0 && (Number(o.devengado_2026) || 0) === 0 && hoy.getMonth() >= 6)
+      alertas.push({ nivel: 'amarillo', texto: 'PIM sin ejecutar' });
+    if (fechaFin && fechaFin >= hoy && diasParaFin <= 30 && (fis || 0) < 80)
+      alertas.push({ nivel: 'amarillo', texto: `Vence en ${diasParaFin}d` });
+    if (mesesIni !== null && mesesIni >= 2 && (fis || 0) === 0 && (fin || 0) === 0)
+      alertas.push({ nivel: 'amarillo', texto: 'Arranque lento' });
+    if (fis !== null && fin !== null && (fis - fin) > 20)
+      alertas.push({ nivel: 'amarillo', texto: 'Brecha invertida' });
+    const _pendEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
+    const _pendCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
+    if (_pendEjec > 0 && _pendCierre > 0 && _pendEjec > _pendCierre)
+      alertas.push({ nivel: 'amarillo', texto: 'Presupuesto inflado' });
+  }
+
+  if (Array.isArray(o.seace_alertas) && o.seace_alertas.length) {
+    const tipos = {};
+    o.seace_alertas.forEach(a => { const t = a.tipo_alerta || a; tipos[t] = (tipos[t] || 0) + 1; });
+    if (tipos.ETAPA_VENCIDA_SIN_DOC)   alertas.push({ nivel: 'amarillo', texto: `Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}` });
+    if (tipos.PERDIDA_BUENA_PRO)       alertas.push({ nivel: 'rojo',     texto: 'Pérdida de buena pro' });
+    if (tipos.DOBLE_DESIERTO)          alertas.push({ nivel: 'amarillo', texto: 'Doble desierto' });
+    if (tipos.ADJUDICADO_SIN_CONTRATO) alertas.push({ nivel: 'amarillo', texto: 'Adjudicado sin contrato' });
+    if (tipos.PLAZO_MENOR_NORMATIVA)   alertas.push({ nivel: 'amarillo', texto: 'Plazo menor normativa' });
+  }
+
+  return alertas;
+}
+
+// Ranking departamental + nacional (entre municipalidades provinciales).
+// No incluye ranking "provincial" — el monitor no tiene la provincia
+// exacta de la entidad guardada, solo la región/departamento.
+async function obtenerRankingEntidad(ejecutora, departamento) {
+  if (!ejecutora || !departamento) return null;
+  try {
+    const ano = new Date().getFullYear().toString();
+    const sqlDept = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID_MEF}" WHERE "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}' AND "ANO_EJE"='${ano}' GROUP BY "EJECUTORA_NOMBRE"`;
+    const sqlNac  = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID_MEF}" WHERE "NIVEL_GOBIERNO_NOMBRE"='GOBIERNOS LOCALES' AND "ANO_EJE"='${ano}' AND "EJECUTORA_NOMBRE" ILIKE '%PROVINCIAL%' GROUP BY "EJECUTORA_NOMBRE"`;
+    const withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))]);
+    const [rDept, rNac] = await Promise.all([
+      withTimeout(fetch(`${API}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlDept)}`).then(r => r.json()), 9000).catch(() => ({ records: [] })),
+      withTimeout(fetch(`${API}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlNac)}`).then(r => r.json()),  9000).catch(() => ({ records: [] })),
+    ]);
+    const toList = records => (records || [])
+      .map(r => ({ nombre: String(r.EJECUTORA_NOMBRE || '').trim(), pim: Number(r.PIM_TOTAL) || 0, dev: Number(r.DEV_TOTAL) || 0 }))
+      .filter(r => r.nombre && r.pim > 0)
+      .map(r => ({ ...r, pct: r.dev / r.pim * 100 }))
+      .sort((a, b) => b.pct - a.pct);
+    const listDept = toList(rDept.records);
+    const listNac  = toList(rNac.records);
+    const propiaIdx = listDept.findIndex(r => r.nombre === ejecutora);
+    const posDept  = propiaIdx >= 0 ? propiaIdx + 1 : null;
+    const promDept = listDept.length ? listDept.reduce((s, r) => s + r.pct, 0) / listDept.length : 0;
+    const nacIdx  = listNac.findIndex(r => r.nombre === ejecutora);
+    const posNac  = nacIdx >= 0 ? nacIdx + 1 : null;
+    const promNac = listNac.length ? listNac.reduce((s, r) => s + r.pct, 0) / listNac.length : 0;
+    return {
+      dept: { pos: posDept, total: listDept.length, prom: promDept.toFixed(1) },
+      nac:  { pos: posNac,  total: listNac.length,  prom: promNac.toFixed(1) },
+    };
+  } catch (e) {
+    console.error('Error calculando ranking:', e.message);
+    return null;
+  }
+}
+
+function construirSlideDiagnostico(nombreEntidad, datos) {
+  const {
+    total, rojas, amarillas, sinAlerta,
+    pimTotal, devTotal, certTotal, compTotal,
+    saldoPim, saldoFinanciar, top3, ranking, fechaStr, monitorUrl,
+  } = datos;
+  const pctDev  = pimTotal > 0 ? (devTotal  / pimTotal * 100).toFixed(1) : '0.0';
+  const pctComp = pimTotal > 0 ? (compTotal / pimTotal * 100).toFixed(1) : '0.0';
+  const pctCert = pimTotal > 0 ? (certTotal / pimTotal * 100).toFixed(1) : '0.0';
+
+  function rankColor(pos, total) {
+    const pct = pos / total;
+    return pct <= 0.25 ? 'bueno' : pct <= 0.50 ? 'medio' : 'normal';
+  }
+  function rankBloque(scope, r) {
+    if (!r || !r.total || !r.pos) return `<div class="sl-rank-item"><div class="sl-rank-scope">${scope}</div><div style="font-size:9px;color:#b0a898;margin-top:4px">Sin datos disponibles</div></div>`;
+    const col = rankColor(r.pos, r.total);
+    const muniW = Math.min(Math.round(parseFloat(pctDev)), 100);
+    const promW = Math.min(Math.round(parseFloat(r.prom)), 100);
+    return `
+    <div class="sl-rank-item">
+      <div class="sl-rank-scope">${scope}</div>
+      <div class="sl-rank-pos-row">
+        <div class="sl-rank-pos ${col}">${r.pos}°</div>
+        <div class="sl-rank-de">de ${r.total}</div>
+      </div>
+      <div class="sl-cmp-row">
+        <span class="sl-cmp-lbl">Muni</span>
+        <div class="sl-cmp-track"><div class="sl-cmp-fill muni" style="width:${muniW}%"></div></div>
+        <span class="sl-cmp-val muni">${pctDev}%</span>
+      </div>
+      <div class="sl-cmp-row">
+        <span class="sl-cmp-lbl">Prom</span>
+        <div class="sl-cmp-track"><div class="sl-cmp-fill prom" style="width:${promW}%"></div></div>
+        <span class="sl-cmp-val prom">${r.prom}%</span>
+      </div>
+      <div class="sl-leg">
+        <div class="sl-leg-item"><div class="sl-leg-dot muni"></div>Esta municipalidad</div>
+        <div class="sl-leg-item"><div class="sl-leg-dot prom"></div>Promedio</div>
+      </div>
+    </div>`;
+  }
+  const rankingHtml = ranking
+    ? rankBloque('Departamento', ranking.dept) + rankBloque('Nacional · Provinciales', ranking.nac)
+    : `<div class="sl-rank-item" style="grid-column:span 2;font-size:9px;color:#b0a898">Ranking no disponible — el nombre de la entidad no coincidió con el registrado en el MEF, o hubo un problema de conexión</div>`;
+
+  const top3html = top3.map((o, i) => {
+    const peor = o._alertas.find(a => a.nivel === 'rojo') || o._alertas[0];
+    return `
+    <div class="sl-obra">
+      <div class="sl-obra-n">${i + 1}</div>
+      <div class="sl-obra-nom">${o.nombre || 'Sin nombre'}</div>
+      <div class="sl-obra-monto">${fmtMpp(o.pim_2026)}</div>
+      <div class="sl-obra-badge ${peor && peor.nivel === 'rojo' ? 'rojo' : 'amber'}">${peor ? peor.texto : ''}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="slide-alcalde">
+  <div class="sl-top">
+    <div>
+      <div class="sl-brand">ExpedienteCheck · Resumen Ejecutivo</div>
+      <div class="sl-title">${nombreEntidad}</div>
+    </div>
+    <div>
+      <div class="sl-date">Diagnóstico al ${fechaStr}</div>
+      <div class="sl-date">Fuente: SSI-MEF + InfoObras + SEACE</div>
+    </div>
+  </div>
+  <div class="sl-kpis">
+    <div class="sl-kpi">
+      <div class="sl-kpi-n verde">${pctDev}%</div>
+      <div class="sl-kpi-lbl">Ejecución del PIM</div>
+      <div class="sl-kpi-sub">${fmtMpp(devTotal)} devengado de ${fmtMpp(pimTotal)}</div>
+    </div>
+    <div class="sl-kpi">
+      <div class="sl-kpi-n rojo">${rojas + amarillas}</div>
+      <div class="sl-kpi-lbl">Inversiones con alerta</div>
+      <div class="sl-kpi-sub">De ${total} con seguimiento ExpedienteCheck — ${rojas} rojas, ${amarillas} amarillas</div>
+    </div>
+    <div class="sl-kpi">
+      <div class="sl-kpi-n oro">${fmtMpp(saldoPim)}</div>
+      <div class="sl-kpi-lbl">Presupuesto por ejecutar</div>
+      <div class="sl-kpi-sub">El MEF recupera lo no ejecutado al cierre de diciembre</div>
+    </div>
+  </div>
+  <div class="sl-barras">
+    <div class="sl-bar-hdr"><span>Estado del presupuesto</span><span>PIM total: ${fmtMpp(pimTotal)}</span></div>
+    <div class="sl-bar-row">
+      <span class="sl-bar-lbl">Devengado</span>
+      <div class="sl-bar-track"><div class="sl-bar-fill dev" style="width:${Math.min(parseFloat(pctDev), 100)}%"></div></div>
+      <span class="sl-bar-pct verde">${pctDev}%</span>
+    </div>
+    <div class="sl-bar-row">
+      <span class="sl-bar-lbl">Comprometido</span>
+      <div class="sl-bar-track"><div class="sl-bar-fill comp" style="width:${Math.min(parseFloat(pctComp), 100)}%"></div></div>
+      <span class="sl-bar-pct oro">${pctComp}%</span>
+    </div>
+    <div class="sl-bar-row">
+      <span class="sl-bar-lbl">Certificado</span>
+      <div class="sl-bar-track"><div class="sl-bar-fill cert" style="width:${Math.min(parseFloat(pctCert), 100)}%"></div></div>
+      <span class="sl-bar-pct gris">${pctCert}%</span>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px;padding-top:8px;border-top:1px solid #e0d8cc;">
+      <div style="flex:1;background:#f8f4ef;border-radius:6px;padding:7px 10px;">
+        <div style="font-size:8px;color:#8a8074;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Saldo PIM</div>
+        <div style="font-size:14px;font-weight:700;color:#D64545;">${fmtMpp(saldoPim)}</div>
+        <div style="font-size:8px;color:#b0a898;margin-top:1px;">Presupuesto sin ejecutar este año</div>
+      </div>
+      <div style="flex:1;background:#f8f4ef;border-radius:6px;padding:7px 10px;">
+        <div style="font-size:8px;color:#8a8074;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Saldo por financiar</div>
+        <div style="font-size:14px;font-weight:700;color:#B8880E;">${saldoFinanciar > 0 ? fmtMpp(saldoFinanciar) : '—'}</div>
+        <div style="font-size:8px;color:#b0a898;margin-top:1px;">Lo que falta para terminar las obras</div>
+      </div>
+    </div>
+  </div>
+  <div class="sl-ranking">
+    <div class="sl-rank-hdr"><span>Ranking comparativo · % ejecución PIM</span><span>Fuente: Datos Abiertos MEF</span></div>
+    <div class="sl-rank-grid" style="grid-template-columns:1fr 1fr">${rankingHtml}</div>
+  </div>
+  <div class="sl-alertas">
+    <div class="sl-al-total">
+      <div class="sl-al-linea"><span class="sl-al-n navy">${total}</span> inversiones con seguimiento ExpedienteCheck <span class="sl-al-pim">PIM &gt; 0</span></div>
+      <div class="sl-al-linea"><span class="sl-al-n rojo">${rojas + amarillas}</span> inversiones con al menos 1 alerta detectada</div>
+    </div>
+    <div class="sl-al-div"></div>
+    <div class="sl-al-desg">
+      <div class="sl-al-tipo rojo">
+        <div class="sl-al-tipo-n">${rojas}</div>
+        <div class="sl-al-tipo-lbl">Requieren atención</div>
+        <div class="sl-al-tipo-desc">Al menos 1 alerta roja — brecha crítica, F12B vencido u obra atrasada</div>
+      </div>
+      <div class="sl-al-tipo amber">
+        <div class="sl-al-tipo-n">${amarillas}</div>
+        <div class="sl-al-tipo-lbl">En seguimiento</div>
+        <div class="sl-al-tipo-desc">Solo alertas amarillas — conviene vigilarlas antes de que escalen</div>
+      </div>
+      <div class="sl-al-tipo" style="background:#eaf6f1;border:1px solid #b8e0d0">
+        <div class="sl-al-tipo-n" style="color:#1D8F6A">${sinAlerta}</div>
+        <div class="sl-al-tipo-lbl" style="color:#1D8F6A">Sin alertas</div>
+        <div class="sl-al-tipo-desc" style="color:#1D8F6A">Dentro de rangos normales</div>
+      </div>
+    </div>
+    ${top3.length ? `<div class="sl-al-div"></div><div class="sl-top3-hdr">Las inversiones que más requieren atención · mayor PIM en riesgo</div>${top3html}` : ''}
+  </div>
+  <div class="sl-express">
+    <strong>Este es el mismo diagnóstico que ves en el monitor de ${nombreEntidad}.</strong>
+    KPIs, alertas y ranking calculados con los datos ya sincronizados desde SSI-MEF, InfoObras y SEACE — el detalle completo por inversión continúa en las páginas siguientes.
+  </div>
+  <div class="sl-footer">
+    <span>EXPEDIENTECHECK · MONITOR DE OBRAS</span>
+    <span>${monitorUrl}</span>
+  </div>
+</div>`;
+}
+
+function construirInvCardDiagnostico(o) {
+  const pim     = Number(o.pim_2026) || 0;
+  const cert    = Number(o.certificado_ano_vigente) || 0;
+  const comp    = Number(o.comprometido_ano_vigente) || 0;
+  const dev2026 = Number(o.devengado_2026) || 0;
+  const devAcum = Number(o.dev_acumulado) || 0;
+  const costo   = Number(o.costo_actualizado) || 0;
+  const avFin   = o.avance_financiero != null ? Number(o.avance_financiero)
+    : (devAcum > 0 && costo > 0 ? (devAcum / costo * 100) : null);
+
+  return `<div class="inv-card">
+    <div class="inv-top">
+      <div class="inv-nombre">${o.nombre || 'Sin nombre'}</div>
+      <span class="inv-cui">CUI ${o.cui}</span>
+    </div>
+    <div class="inv-grid">
+      <div class="inv-kpi"><div class="inv-kpi-lbl">PIM</div><div class="inv-kpi-val">${fmtMpp(pim)}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Certificado</div><div class="inv-kpi-val">${fmtMpp(cert)}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Comprometido</div><div class="inv-kpi-val">${fmtMpp(comp)}</div></div>
+      <div class="inv-kpi"><div class="inv-kpi-lbl">Devengado</div><div class="inv-kpi-val">${fmtMpp(dev2026)}</div></div>
+    </div>
+    <div class="inv-prog">
+      <div class="inv-prog-row">
+        <span class="inv-prog-lbl">Av. físico acum.</span>
+        <div class="inv-prog-bar"><div class="inv-prog-fill fisico" style="width:${Math.min(o.avance_fisico || 0, 100)}%"></div></div>
+        <span class="inv-prog-pct">${o.avance_fisico != null ? Number(o.avance_fisico).toFixed(1) + '%' : '—'}</span>
+      </div>
+      ${avFin !== null ? `<div class="inv-prog-row">
+        <span class="inv-prog-lbl">Av. financiero acum.</span>
+        <div class="inv-prog-bar"><div class="inv-prog-fill financiero" style="width:${Math.min(avFin, 100)}%"></div></div>
+        <span class="inv-prog-pct">${avFin.toFixed(1)}%</span>
+      </div>` : ''}
+    </div>
+    <div class="alertas-row">
+      ${o._alertas.map(a => `<span class="badge-${a.nivel === 'rojo' ? 'red' : 'amber'}">${a.texto}</span>`).join('')}
+    </div>
+  </div>`;
+}
+
+async function generarDiagnosticoPDF() {
+  if (!kpisEntidad || !obras.length) {
+    alert('Todavía no terminan de cargar los datos del monitor. Espera un momento e inténtalo de nuevo.');
+    return;
+  }
+
+  const btn   = document.getElementById('btn-diagnostico');
+  const label = document.getElementById('btn-diagnostico-label');
+  const labelOriginal = label.textContent;
+  btn.disabled = true;
+  label.textContent = 'Generando...';
+
+  try {
+    const nombreEntidad = kpisEntidad.entidad?.nombre || SLUG;
+    const conAlertas = obras.map(o => ({ ...o, _alertas: construirAlertasObra(o) }));
+
+    // Mismos totales que ya se ven en el monitor (renderStats) — se
+    // recalculan igual, con los mismos datos en memoria, así garantizamos
+    // que el PDF nunca contradiga los números que el usuario ya vio en pantalla.
+    const rojas     = conAlertas.filter(o => calcularAlertaInversion(o) === 'rojo').length;
+    const amarillas = conAlertas.filter(o => calcularAlertaInversion(o) === 'amarillo').length;
+    const sinAlerta = conAlertas.length - rojas - amarillas;
+
+    const s = kpisEntidad.ssi || {};
+    const pimTotal  = Number(s.pim_total) || 0;
+    const devTotal  = Number(s.devengado_total) || 0;
+    const certTotal = conAlertas.reduce((sum, o) => sum + (Number(o.certificado_ano_vigente) || 0), 0);
+    const compTotal = conAlertas.reduce((sum, o) => sum + (Number(o.comprometido_ano_vigente) || 0), 0);
+    const saldoPim  = pimTotal - devTotal;
+    const saldoFinanciar = conAlertas.reduce((sum, o) => {
+      const saldo = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
+      return sum + (saldo > 0 ? saldo : 0);
+    }, 0);
+
+    const top3 = conAlertas
+      .filter(o => o._alertas.length > 0)
+      .sort((a, b) => (b.pim_2026 || 0) - (a.pim_2026 || 0))
+      .slice(0, 3);
+
+    const conAlertasOrdenadas = conAlertas
+      .filter(o => o._alertas.length > 0)
+      .sort((a, b) => {
+        const rA = a._alertas.filter(x => x.nivel === 'rojo').length;
+        const rB = b._alertas.filter(x => x.nivel === 'rojo').length;
+        if (rB !== rA) return rB - rA;
+        return (b.pim_2026 || 0) - (a.pim_2026 || 0);
+      });
+
+    label.textContent = 'Calculando ranking...';
+    const ranking = await obtenerRankingEntidad(nombreEntidad, kpisEntidad.entidad?.region);
+
+    const fechaStr   = new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
+    const monitorUrl = `${window.location.origin}${window.location.pathname}?e=${SLUG}`;
+
+    const slideHtml = construirSlideDiagnostico(nombreEntidad, {
+      total: conAlertas.length, rojas, amarillas, sinAlerta,
+      pimTotal, devTotal, certTotal, compTotal, saldoPim, saldoFinanciar,
+      top3, ranking, fechaStr, monitorUrl,
+    });
+
+    const reporteHtml = `
+      <div class="report-header">
+        <div class="report-muni">${nombreEntidad}</div>
+        <div class="report-sub">Diagnóstico generado el ${fechaStr} desde ${monitorUrl}</div>
+        <div class="kpi-row">
+          <div class="kpi"><div class="kpi-val">${conAlertas.length}</div><div class="kpi-lbl">Inversiones con PIM</div></div>
+          <div class="kpi"><div class="kpi-val" style="font-size:15px">${fmtMpp(pimTotal)}</div><div class="kpi-lbl">PIM</div></div>
+          <div class="kpi"><div class="kpi-val" style="font-size:15px">${fmtMpp(devTotal)}</div><div class="kpi-lbl">Devengado</div></div>
+          <div class="kpi"><div class="kpi-val" style="font-size:15px;color:#F08080">${fmtMpp(saldoPim)}</div><div class="kpi-lbl">Saldo PIM</div></div>
+          <div class="kpi"><div class="kpi-val" style="font-size:15px;color:#D4A62A">${saldoFinanciar > 0 ? fmtMpp(saldoFinanciar) : '—'}</div><div class="kpi-lbl">Saldo por financiar</div></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-head">
+          <h3>Inversiones con alerta</h3>
+          <span class="count">${conAlertasOrdenadas.length} de ${conAlertas.length}</span>
+        </div>
+        ${conAlertasOrdenadas.length
+          ? conAlertasOrdenadas.map(o => construirInvCardDiagnostico(o)).join('')
+          : '<div style="padding:20px 18px;font-size:13px;color:var(--text2)">Sin alertas detectadas con los datos disponibles.</div>'}
+      </div>`;
+
+    // Se arma en el overlay (visible de verdad en pantalla — html2canvas no
+    // captura bien contenido escondido con trucos de posición negativa) y se
+    // convierte a PDF real con html2pdf.js — se descarga directo, sin pasar
+    // por el diálogo de imprimir del navegador.
+    label.textContent = 'Generando PDF...';
+    const overlay    = document.getElementById('diag-pdf-overlay');
+    const contenedor = document.getElementById('diag-pdf-container');
+    contenedor.innerHTML = slideHtml + reporteHtml;
+    overlay.style.display = 'block';
+
+    // Dejar que el navegador pinte el contenido antes de capturarlo.
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    const fechaArchivo = new Date().toISOString().slice(0, 10);
+    await html2pdf().set({
+      margin:      8,
+      filename:    `diagnostico-${SLUG}-${fechaArchivo}.pdf`,
+      image:       { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#F4EFE7', useCORS: true },
+      jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:   { mode: ['css', 'legacy'] },
+    }).from(contenedor).save();
+
+    overlay.style.display = 'none';
+    contenedor.innerHTML = '';
+
+  } catch (err) {
+    console.error('Error generando diagnóstico:', err);
+    alert('No se pudo generar el diagnóstico. Intenta de nuevo en unos segundos.');
+  } finally {
+    document.getElementById('diag-pdf-overlay').style.display = 'none';
+    document.getElementById('diag-pdf-container').innerHTML = '';
+    btn.disabled = false;
+    label.textContent = labelOriginal;
+  }
+}
+
+// ── WHATSAPP — comparte el mismo resumen que ya está en pantalla ──
+// Nota: se evitan emojis con par-surrogado (📊 🔴 🟡 👉) por el mismo
+// motivo que en diagnostico-ondemand.html — en Windows, el handoff del
+// navegador a WhatsApp Desktop los corrompe y llegan como "�".
+function enviarWhatsAppMonitor() {
+  if (!kpisEntidad || !obras.length) {
+    alert('Todavía no terminan de cargar los datos del monitor. Espera un momento e inténtalo de nuevo.');
+    return;
+  }
+  const numero = document.getElementById('wa-numero').value.replace(/\D/g, '');
+  if (!numero || numero.length < 10) { alert('Ingresa un número válido con código de país (ej: 51999888777)'); return; }
+
+  const nombreEntidad = kpisEntidad.entidad?.nombre || SLUG;
+  const rojas     = obras.filter(o => calcularAlertaInversion(o) === 'rojo').length;
+  const amarillas = obras.filter(o => calcularAlertaInversion(o) === 'amarillo').length;
+  const s = kpisEntidad.ssi || {};
+  const pimTotal = Number(s.pim_total) || 0;
+  const devTotal = Number(s.devengado_total) || 0;
+  const pctDev   = pimTotal > 0 ? (devTotal / pimTotal * 100).toFixed(1) : '0.0';
+  const fecha    = new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
+  const monitorUrl = `${window.location.origin}${window.location.pathname}?e=${SLUG}`;
+
+  const lineas = [];
+  if (rojas > 0)     lineas.push(`⚠️ ${rojas} inversión${rojas > 1 ? 'es' : ''} con alerta crítica que requiere${rojas > 1 ? 'n' : ''} atención inmediata`);
+  if (amarillas > 0) lineas.push(`• ${amarillas} inversión${amarillas > 1 ? 'es' : ''} en seguimiento`);
+  if (!lineas.length) lineas.push('✅ Sin alertas críticas detectadas en este momento');
+
+  const msg = `Hola, le comparto el monitor de inversiones de *${nombreEntidad}* actualizado al ${fecha} con ExpedienteCheck.\n\n*Resumen ejecutivo:*\n• ${obras.length} inversiones con PIM · ${fmtMpp(pimTotal)}\n• Devengado: ${fmtMpp(devTotal)} (${pctDev}% del PIM)\n${lineas.join('\n')}\n\n➡️ Ver el monitor completo: ${monitorUrl}`;
+
+  window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
+}
 
 // ── INICIO ───────────────────────────────────────────────────
 cargarObras();
