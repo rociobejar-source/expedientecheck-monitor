@@ -322,9 +322,19 @@ const ANO         = new Date().getFullYear().toString();
 const HOY         = new Date();
 
 // ── MODO (municipalidad / gobierno regional) ─────────────────
-let MODO = 'muni'; // 'muni' | 'gore'
+let MODO = 'muni'; // 'muni' | 'gore' | 'nacional'
+
+// Cada modo busca algo distinto en el mismo campo de texto (nombre exacto
+// de la ejecutora en modo Municipalidad, vs. solo el departamento en modo
+// Gobierno Regional) — se recuerda por separado lo que va en cada uno para
+// no perderlo al cambiar de pestaña. Nacional no tiene un valor relacionado
+// a una municipalidad puntual, así que se deja vacío a propósito.
+const valoresPorModo = { muni: '', gore: '', nacional: '' };
 
 function setModo(m) {
+  // Solo capturar lo que había si de verdad se está cambiando de modo —
+  // si no, un setModo(MODO) para refrescar la UI se pisaría a sí mismo.
+  if (m !== MODO) valoresPorModo[MODO] = document.getElementById('inputEjecutora').value;
   MODO = m;
   document.getElementById('btnModoMuni').classList.toggle('modo-btn-active', m === 'muni');
   document.getElementById('btnModoGore').classList.toggle('modo-btn-active', m === 'gore');
@@ -333,6 +343,7 @@ function setModo(m) {
   const filaDeptProv = document.getElementById('filaDeptProv');
   const hint     = document.getElementById('modoHint');
   const hintSub  = document.getElementById('modoHintSub');
+  inputEj.value = valoresPorModo[m] || '';
   if (m === 'muni') {
     inputEj.placeholder = 'Ej: MUNICIPALIDAD PROVINCIAL DE AREQUIPA';
     hint.textContent    = 'Ingresa el nombre exacto de la unidad ejecutora tal como figura en el MEF. El sistema consulta las APIs del MEF y genera el diagnóstico automáticamente.';
@@ -1129,11 +1140,16 @@ function enviarWhatsApp(ejecutora, rojas, amars, total, pimStr, devStr, pctDev) 
   const numero = document.getElementById('waNumero').value.replace(/\D/g,'');
   if (!numero || numero.length < 10) { alert('Ingresa un número válido con código de país (ej: 51999888777)'); return; }
   const fecha = HOY.toLocaleDateString('es-PE', { day:'numeric', month:'long', year:'numeric' });
+  // Nota: se evitan emojis que requieren par-surrogado en UTF-16 (📊 🔴 🟡 👉).
+  // En Windows, cuando el navegador le pasa el link wa.me a WhatsApp Desktop,
+  // ese handoff corrompe esos emojis específicos y llegan como "�". Los
+  // símbolos usados aquí (⚠️ ➡️ • ✅) están en el rango básico (BMP) y no
+  // tienen ese problema, en cualquier cliente de WhatsApp.
   const lineas = [];
-  if (rojas > 0) lineas.push(`🔴 ${rojas} alerta${rojas>1?'s':''} crítica${rojas>1?'s':''} que requieren atención inmediata`);
-  if (amars > 0) lineas.push(`🟡 ${amars} alerta${amars>1?'s':''} de seguimiento antes de diciembre`);
+  if (rojas > 0) lineas.push(`⚠️ ${rojas} alerta${rojas>1?'s':''} crítica${rojas>1?'s':''} que requieren atención inmediata`);
+  if (amars > 0) lineas.push(`• ${amars} alerta${amars>1?'s':''} de seguimiento antes de diciembre`);
   if (!lineas.length) lineas.push('✅ Sin alertas críticas detectadas en este diagnóstico');
-  const msg = `Hola, le comparto el diagnóstico de inversiones de *${ejecutora}* generado el ${fecha} con ExpedienteCheck.\n\n📊 *Resumen ejecutivo:*\n• ${total} inversiones activas · PIM ${ANO}: ${pimStr}\n• Devengado: ${devStr} (${pctDev}% del PIM)\n${lineas.join('\n')}\n\nCon esta plataforma, usted recibiría alertas semanales automáticas — antes de que llegue Contraloría o tenga problemas con el MEF.\n\n👉 Ver el monitor: ${MONITOR_URL}\n(Con sus datos, el sistema mostraría el detalle por cada obra de su municipalidad)\n\n¿Le gustaría activar el piloto gratuito?`;
+  const msg = `Hola, le comparto el diagnóstico de inversiones de *${ejecutora}* generado el ${fecha} con ExpedienteCheck.\n\n*Resumen ejecutivo:*\n• ${total} inversiones activas · PIM ${ANO}: ${pimStr}\n• Devengado: ${devStr} (${pctDev}% del PIM)\n${lineas.join('\n')}\n\nCon esta plataforma, usted recibiría alertas semanales automáticas — antes de que llegue Contraloría o tenga problemas con el MEF.\n\n➡️ Ver el monitor: ${MONITOR_URL}\n(Con sus datos, el sistema mostraría el detalle por cada obra de su municipalidad)\n\n¿Le gustaría activar el piloto gratuito?`;
   window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
@@ -1416,6 +1432,34 @@ function imprimirReporte() {
 }
 
 renderHistorial();
+
+// ── PRE-CARGA DESDE QUERY PARAMS (link "Generar diagnóstico PDF" en index.html) ──
+// index.html pasa el nombre y la región de la entidad tal como están en
+// Supabase — no siempre coinciden 100% con el formato exacto del MEF
+// (EJECUTORA_NOMBRE en mayúsculas sin tildes), así que solo se precargan
+// los campos; el usuario confirma/ajusta y dispara el análisis él mismo.
+(function precargarDesdeURL() {
+  const params       = new URLSearchParams(window.location.search);
+  const ejecutora    = params.get('ejecutora');
+  const departamento = params.get('departamento');
+  const provincia    = params.get('provincia');
+  const modo         = params.get('modo');
+
+  if (!ejecutora && !departamento && !provincia) return;
+
+  // Modo Municipalidad: nombre exacto de la ejecutora.
+  if (ejecutora) valoresPorModo.muni = ejecutora.toUpperCase();
+  // Modo Gobierno Regional: mismo departamento, pero ahí el campo busca
+  // solo el nombre del Pliego regional (ej: "TACNA"), no la municipalidad.
+  if (departamento) valoresPorModo.gore = departamento.toUpperCase();
+  // Modo Gobierno Nacional queda sin precargar a propósito — no hay un
+  // ministerio/Pliego nacional relacionado a una municipalidad puntual.
+
+  if (departamento) document.getElementById('inputDepartamento').value = departamento.toUpperCase();
+  if (provincia)    document.getElementById('inputProvincia').value    = provincia.toUpperCase();
+
+  setModo(modo && ['muni', 'gore', 'nacional'].includes(modo) ? modo : MODO);
+})();
 </script>
 </body>
 </html>

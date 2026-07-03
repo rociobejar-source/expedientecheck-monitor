@@ -570,6 +570,8 @@
     .badge.azul    { background: #e0e7ff; color: #3730a3; }
     .badge.naranja { background: #fff3e0; color: #e65100; }
     .badge.gris2   { background: #f3f4f6; color: #4b5563; }
+
+    .public-note {
       background: var(--accent-lt);
       border: 1px solid #b8dfc9;
       border-radius: 8px;
@@ -775,9 +777,16 @@
       <div class="entidad-nombre" id="entidad-nombre">—</div>
       <div class="page-subtitle">Datos desde SSI — MEF · <span id="fecha-hoy"></span></div>
     </div>
-    <button class="btn-actualizar" id="btn-actualizar">
-      <span id="icon-refresh">↻</span> Actualizar datos
-    </button>
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <a class="btn-actualizar" id="btn-diagnostico" href="diagnostico-ondemand.html" target="_blank" rel="noopener"
+        style="background:var(--surface); color:var(--header); border:1px solid var(--border); text-decoration:none"
+        title="Abre el Diagnóstico Rápido con esta entidad precargada — revisa los campos y genera el PDF desde ahí">
+        📄 Generar diagnóstico PDF
+      </a>
+      <button class="btn-actualizar" id="btn-actualizar">
+        <span id="icon-refresh">↻</span> Actualizar datos
+      </button>
+    </div>
   </div>
 
   <!-- STATS -->
@@ -1058,6 +1067,17 @@ async function cargarObras() {
     if (dataEntidad.entidad?.nombre) {
       document.getElementById('entidad-nombre').textContent = dataEntidad.entidad.nombre;
       document.title = `ExpedienteCheck · ${dataEntidad.entidad.nombre}`;
+    }
+
+    // Precarga el Diagnóstico Rápido con esta entidad. El nombre y la región
+    // vienen tal cual de Supabase — pueden no coincidir 100% con el formato
+    // exacto que usa el MEF (EJECUTORA_NOMBRE), así que se dejan editables
+    // en diagnostico-ondemand.html en vez de autoenviar el formulario.
+    if (dataEntidad.entidad) {
+      const diagUrl = new URL('diagnostico-ondemand.html', window.location.href);
+      if (dataEntidad.entidad.nombre) diagUrl.searchParams.set('ejecutora', dataEntidad.entidad.nombre);
+      if (dataEntidad.entidad.region) diagUrl.searchParams.set('departamento', dataEntidad.entidad.region);
+      document.getElementById('btn-diagnostico').href = diagUrl.toString();
     }
 
     const tieneDatosManual = obras.some(o => o.actualizado_manualmente);
