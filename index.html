@@ -812,6 +812,7 @@
     #diag-pdf-container .alertas-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
     #diag-pdf-container .badge-red { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: #FDEAEA; color: #8B1A1A; }
     #diag-pdf-container .badge-amber { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: #FEF3DC; color: #7A4800; }
+    #diag-pdf-container .alerta-desc { font-size: 12px; color: #5a5a5a; margin-top: 4px; line-height: 1.55; background: #f8f4ef; border-radius: 6px; padding: 8px 10px; }
 
     #diag-pdf-container .slide-alcalde { display: flex; flex-direction: column; gap: 14px; background: #F4EFE7; padding: 22px 26px 20px; border: 1px solid #e0d8cc; margin-bottom: 16px; border-radius: 12px; page-break-after: always; }
     #diag-pdf-container .sl-top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0B2341; padding-bottom: 10px; }
@@ -2125,6 +2126,11 @@ const RESOURCE_ID_MEF = '615644aa-ef73-4358-b4e0-0c20931632f3';
 // (renderTabla) — copiado tal cual para no arriesgar el rendering
 // de la tabla ya en producción. Si algún día se corrige un criterio
 // de alerta ahí, hay que replicarlo aquí también.
+// Textos largos del catálogo oficial de 16 alertas (Textos_Alertas_ExpedienteCheck.md).
+// Solo se usan para el PDF (construirInvCardDiagnostico) — los badges cortos que
+// ya se ven en la tabla del monitor no cambian.
+function pct1(v) { return v == null ? '—' : Number(v).toFixed(1) + '%'; }
+
 function construirAlertasObra(o) {
   const alertas = [];
   const cerrada = o.estado_inversion === 'CERRADO';
@@ -2140,37 +2146,68 @@ function construirAlertasObra(o) {
   const mesesIni = fechaIni ? (hoy - fechaIni) / (30 * 86400000) : null;
 
   if (cerrada) {
-    if (saldoPim > 0) alertas.push({ nivel: 'rojo', texto: 'Cerrada c/saldo PIM' });
-    if (saldoFinanc > 0 && saldoPim <= 0) alertas.push({ nivel: 'amarillo', texto: 'Sin presup. culminar' });
+    if (saldoPim > 0) alertas.push({ nivel: 'rojo', texto: 'Cerrada c/saldo PIM', codigo: 'CERRADA_SALDO_PIM',
+      desc: `La inversión figura como CERRADA en el SSI-MEF pero mantiene un saldo de PIM de ${fmtMpp(saldoPim)} sin devengar. Un cierre con presupuesto no ejecutado puede interpretarse como una mala programación presupuestal o encubrir gasto pendiente sin sustento. La normativa de cierre presupuestal del MEF exige que los saldos no comprometidos al 31 de diciembre se reviertan al Tesoro Público. Se recomienda verificar el motivo del cierre y regularizar el estado en el sistema antes del cierre del ejercicio fiscal.` });
+    if (saldoFinanc > 0 && saldoPim <= 0) alertas.push({ nivel: 'amarillo', texto: 'Sin presup. culminar', codigo: 'SIN_PRESUP_CULMINAR',
+      desc: `El proyecto tiene un saldo pendiente para culminar de ${fmtMpp(saldoFinanc)} (diferencia entre el costo actualizado y lo devengado acumulado), pero no cuenta con PIM disponible este año para cubrirlo. Sin una modificación presupuestaria antes del cierre del año, la obra no podrá continuar su ejecución este año. Se recomienda evaluar la necesidad de una ampliación presupuestal o de una reformulación del cronograma financiero.` });
   } else {
-    if (brecha !== null && brecha > 20) alertas.push({ nivel: 'rojo', texto: 'Brecha >20%' });
+    if (brecha !== null && brecha > 20) alertas.push({ nivel: 'rojo', texto: 'Brecha >20%', codigo: 'BRECHA_FIN_FIS',
+      desc: `Se está devengando dinero significativamente más rápido de lo que avanza la obra: avance financiero ${pct1(fin)} vs. avance físico ${pct1(fis)} (diferencia: ${brecha.toFixed(1)} puntos). Esto puede indicar paralización encubierta, adelanto de pagos sin respaldo de ejecución, o sobrevaloración de avances. Requiere verificación en campo urgente.` });
+
     const _f12b = evaluarF12B(o.ult_fec_decla_estim, o.estado_inversion);
-    if (_f12b.color !== 'verde' && _f12b.label) alertas.push({ nivel: _f12b.color, texto: _f12b.label });
-    if (fechaFin && fechaFin < hoy && (fis || 0) < 100) alertas.push({ nivel: 'rojo', texto: 'Obra atrasada' });
-    if (brecha !== null && brecha > 10 && brecha <= 20) alertas.push({ nivel: 'amarillo', texto: `Brecha ${brecha.toFixed(1)}%` });
-    if (saldoFinanc > 0 && saldoPim <= 0) alertas.push({ nivel: 'amarillo', texto: 'Sin presup. culminar' });
+    if (_f12b.color !== 'verde' && _f12b.label) alertas.push({ nivel: _f12b.color, texto: _f12b.label, codigo: 'F12B_DESACTUALIZADO',
+      desc: `La obra está en ejecución con avance físico registrado pero el Formato 12B no se ha actualizado en más de 45 días${o.ult_fec_decla_estim ? ` (última actualización: ${o.ult_fec_decla_estim})` : ''}. La Directiva de Seguimiento del MEF exige actualización mensual hasta el cierre de la inversión. Contraloría revisa este campo en sus visitas de campo — un F12B desactualizado es causal directa de observación.` });
+
+    if (fechaFin && fechaFin < hoy && (fis || 0) < 100) alertas.push({ nivel: 'rojo', texto: 'Obra atrasada', codigo: 'OBRA_ATRASADA',
+      desc: `La fecha de culminación registrada en el SSI-MEF ya venció y la obra reporta un avance físico de ${pct1(fis)}, por debajo del 100%. Ejecutar fuera del plazo contractual sin una ampliación de plazo formalizada y aprobada es causal de penalidad económica al contratista y expone a la entidad a observación de Contraloría por incumplimiento del cronograma del expediente técnico aprobado. Se recomienda verificar si existe una Resolución de ampliación de plazo vigente que sustente la demora y registrar la fecha correcta.` });
+
+    if (brecha !== null && brecha > 10 && brecha <= 20) alertas.push({ nivel: 'amarillo', texto: `Brecha ${brecha.toFixed(1)}%`, codigo: 'BRECHA_10_20',
+      desc: `El avance financiero supera al físico entre 10 y 20 puntos porcentuales (brecha actual: ${brecha.toFixed(1)} pts). Aún no llega al umbral crítico de 20 puntos, pero es la señal temprana de una brecha físico-financiera mayor. Se recomienda seguimiento cercano en las próximas actualizaciones del F12B para evitar que escale a alerta roja y derive en una observación por devengado sin respaldo de ejecución.` });
+
+    if (saldoFinanc > 0 && saldoPim <= 0) alertas.push({ nivel: 'amarillo', texto: 'Sin presup. culminar', codigo: 'SIN_PRESUP_CULMINAR',
+      desc: `El proyecto tiene un saldo pendiente para culminar de ${fmtMpp(saldoFinanc)} (diferencia entre el costo actualizado y lo devengado acumulado), pero no cuenta con PIM disponible este año para cubrirlo. Sin una modificación presupuestaria antes del cierre del año, la obra no podrá continuar su ejecución este año. Se recomienda evaluar la necesidad de una ampliación presupuestal o de una reformulación del cronograma financiero.` });
+
     if ((Number(o.pim_2026) || 0) > 0 && (Number(o.devengado_2026) || 0) === 0 && hoy.getMonth() >= 6)
-      alertas.push({ nivel: 'amarillo', texto: 'PIM sin ejecutar' });
+      alertas.push({ nivel: 'amarillo', texto: 'PIM sin ejecutar', codigo: 'PIM_SIN_EJECUTAR',
+        desc: `Ha transcurrido más de la mitad del año fiscal y la inversión tiene presupuesto (PIM) de ${fmtMpp(Number(o.pim_2026) || 0)} asignado sin ningún devengado registrado. Se recomienda verificar el estado real del proceso de contratación o ejecución.` });
+
     if (fechaFin && fechaFin >= hoy && diasParaFin <= 30 && (fis || 0) < 80)
-      alertas.push({ nivel: 'amarillo', texto: `Vence en ${diasParaFin}d` });
+      alertas.push({ nivel: 'amarillo', texto: `Vence en ${diasParaFin}d`, codigo: 'VENCE_PROXIMO',
+        desc: `Faltan ${diasParaFin} días para la fecha de culminación registrada y el avance físico es de solo ${pct1(fis)}. Sin un cronograma acelerado o una ampliación de plazo formalizada antes del vencimiento, la inversión pasará a figurar como obra atrasada — situación que la Contraloría revisa como incumplimiento del plazo aprobado en el expediente técnico.` });
+
     if (mesesIni !== null && mesesIni >= 2 && (fis || 0) === 0 && (fin || 0) === 0)
-      alertas.push({ nivel: 'amarillo', texto: 'Arranque lento' });
+      alertas.push({ nivel: 'amarillo', texto: 'Arranque lento', codigo: 'ARRANQUE_LENTO',
+        desc: `Han pasado más de dos meses desde la fecha de inicio de ejecución registrada y la obra no reporta avance físico ni financiero. Un arranque tan lento puede reflejar demoras en la entrega de terreno, falta de recursos del contratista, o un cuaderno de obra sin actualizar. Se recomienda verificar en campo la fecha real de inicio y las causas de la demora, antes de que se configure un atraso injustificado atribuible a la entidad o al contratista.` });
+
     if (fis !== null && fin !== null && (fis - fin) > 20)
-      alertas.push({ nivel: 'amarillo', texto: 'Brecha invertida' });
+      alertas.push({ nivel: 'amarillo', texto: 'Brecha invertida', codigo: 'BRECHA_INVERTIDA',
+        desc: `El avance físico reportado (${pct1(fis)}) supera al financiero (${pct1(fin)}) en ${(fis - fin).toFixed(1)} puntos. Esto suele indicar una valorización pendiente de trámite o registro de devengado atrasado — y en algunos casos, una sobreestimación del avance físico en el cuaderno de obra. Se recomienda conciliar el avance físico con la valorización pendiente antes del próximo reporte.` });
+
     const _pendEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
     const _pendCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
     if (_pendEjec > 0 && _pendCierre > 0 && _pendEjec > _pendCierre)
-      alertas.push({ nivel: 'amarillo', texto: 'Presupuesto inflado' });
+      alertas.push({ nivel: 'amarillo', texto: 'Presupuesto inflado', codigo: 'PRESUP_INFLADO',
+        desc: `El PIM pendiente de ejecutar este año (${fmtMpp(_pendEjec)}) supera en ${fmtMpp(_pendEjec - _pendCierre)} lo que le falta al proyecto para terminar (${fmtMpp(_pendCierre)}). Hay presupuesto sobreasignado que no tiene respaldo en los registros: riesgo de devolución al MEF al cierre del año, necesidad de modificación presupuestal o de actualización de costo del proyecto.` });
   }
 
   if (Array.isArray(o.seace_alertas) && o.seace_alertas.length) {
     const tipos = {};
     o.seace_alertas.forEach(a => { const t = a.tipo_alerta || a; tipos[t] = (tipos[t] || 0) + 1; });
-    if (tipos.ETAPA_VENCIDA_SIN_DOC)   alertas.push({ nivel: 'amarillo', texto: `Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}` });
-    if (tipos.PERDIDA_BUENA_PRO)       alertas.push({ nivel: 'rojo',     texto: 'Pérdida de buena pro' });
-    if (tipos.DOBLE_DESIERTO)          alertas.push({ nivel: 'amarillo', texto: 'Doble desierto' });
-    if (tipos.ADJUDICADO_SIN_CONTRATO) alertas.push({ nivel: 'amarillo', texto: 'Adjudicado sin contrato' });
-    if (tipos.PLAZO_MENOR_NORMATIVA)   alertas.push({ nivel: 'amarillo', texto: 'Plazo menor normativa' });
+    if (tipos.ETAPA_VENCIDA_SIN_DOC)
+      alertas.push({ nivel: 'amarillo', texto: `Etapa vencida sin doc ×${tipos.ETAPA_VENCIDA_SIN_DOC}`, codigo: 'ETAPA_VENCIDA_SIN_DOC',
+        desc: `El plazo de una etapa del cronograma del procedimiento de selección venció en el SEACE sin que se haya publicado el documento correspondiente (acta, resultado o resolución). Un proceso con etapas vencidas sin sustento documental es observable por Contraloría como falta de diligencia del órgano encargado de las contrataciones (OEC), y puede dar pie a impugnaciones de postores. Se recomienda verificar en el SEACE el estado real de la etapa y regularizar la publicación pendiente.` });
+    if (tipos.PERDIDA_BUENA_PRO)
+      alertas.push({ nivel: 'rojo', texto: 'Pérdida de buena pro', codigo: 'PERDIDA_BUENA_PRO',
+        desc: `La pérdida de buena pro obliga a la entidad a convocar nuevamente el proceso o a llamar al postor que ocupó el segundo lugar, generando una demora adicional en el inicio de obra y, según el caso, activa el procedimiento sancionador del OSCE contra el postor. Se recomienda revisar si la causa es imputable al postor o a la entidad, para determinar la ruta correcta y evitar una nueva convocatoria desierta.` });
+    if (tipos.DOBLE_DESIERTO)
+      alertas.push({ nivel: 'amarillo', texto: 'Doble desierto', codigo: 'DOBLE_DESIERTO',
+        desc: `El procedimiento de selección fue declarado desierto en dos convocatorias consecutivas. Ante una segunda declaratoria de desierto, el Reglamento habilita a la entidad a optar por un procedimiento distinto según la cuantía o a revisar las condiciones del requerimiento y el valor referencial. Cada convocatoria fallida retrasa el inicio de la obra y reduce el tiempo disponible para ejecutar el presupuesto asignado en el año fiscal.` });
+    if (tipos.ADJUDICADO_SIN_CONTRATO)
+      alertas.push({ nivel: 'amarillo', texto: 'Adjudicado sin contrato', codigo: 'ADJUDICADO_SIN_CONTRATO',
+        desc: `La buena pro fue otorgada y consentida, pero el contrato aún no ha sido formalizado — revisar el plazo que establece el Reglamento para el perfeccionamiento del contrato. Si el retraso es atribuible al postor, corresponde evaluar la pérdida de la buena pro y activar al segundo lugar; si es atribuible a la entidad, puede derivar en responsabilidad administrativa del funcionario a cargo y retrasa el inicio del plazo de ejecución de la obra.` });
+    if (tipos.PLAZO_MENOR_NORMATIVA)
+      alertas.push({ nivel: 'amarillo', texto: 'Plazo menor normativa', codigo: 'PLAZO_MENOR_NORMATIVA',
+        desc: `Una de las etapas programadas en el cronograma del procedimiento de selección tiene una duración menor al plazo mínimo que exige el Reglamento de la Ley General de Contrataciones Públicas para esa etapa. Un cronograma que no respeta los plazos mínimos normativos es causal de impugnación por parte de los postores y puede ser observado por el OSCE o el OCI/Contraloría como vicio del procedimiento. Se recomienda verificar y corregir el cronograma antes de que algún postor lo impugne.` });
   }
 
   return alertas;
@@ -2404,6 +2441,7 @@ function construirInvCardDiagnostico(o) {
     <div class="alertas-row">
       ${o._alertas.map(a => `<span class="badge-${a.nivel === 'rojo' ? 'red' : 'amber'}">${a.texto}</span>`).join('')}
     </div>
+    ${o._alertas.map(a => a.desc ? `<div class="alerta-desc">${a.desc}</div>` : '').join('')}
   </div>`;
 }
 
