@@ -137,6 +137,30 @@
     @media (max-width: 900px)  { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 600px)  { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 
+    .stats-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 900px) { .stats-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+
+    .stats-block-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin: 4px 0 10px;
+    }
+    .stats-disclosure {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
     .stat {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -815,7 +839,36 @@
     <button class="btn-wa" onclick="enviarWhatsAppMonitor()">Enviar por WhatsApp</button>
   </div>
 
+  <!-- PRESUPUESTO TOTAL DEL PLIEGO (incluye genéricos — cifra Consulta Amigable MEF) -->
+  <div id="bloque-pliego" style="display:none">
+    <div class="stats-block-title">Presupuesto Total del Pliego · Gasto de Capital</div>
+    <div class="stats-grid-4">
+      <div class="stat">
+        <div class="stat-label">Líneas con presupuesto</div>
+        <div class="stat-value" id="pliego-lineas">—</div>
+        <div class="stat-sub">Con presupuesto vigente</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">PIM (S/)</div>
+        <div class="stat-value verde" id="pliego-pim">—</div>
+        <div class="stat-sub">Presupuesto vigente</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Devengado (S/)</div>
+        <div class="stat-value verde" id="pliego-devengado">—</div>
+        <div class="stat-sub" id="pliego-dev-pct">% del PIM</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Saldo de PIM (S/)</div>
+        <div class="stat-value" id="pliego-saldo">—</div>
+        <div class="stat-sub">Sin ejecutar este año</div>
+      </div>
+    </div>
+    <div class="stats-disclosure" id="pliego-disclosure"></div>
+  </div>
+
   <!-- STATS -->
+  <div class="stats-block-title">Con Seguimiento ExpedienteCheck · No Genéricas</div>
   <div class="stats-grid">
     <div class="stat">
       <div class="stat-label">Inversiones con PIM</div>
@@ -1017,6 +1070,9 @@
 // ══════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════
+// TEMPORAL — apuntado al backend local para probar el bloque de Presupuesto
+// Total del Pliego antes de subir nada a Railway. Volver a
+// 'https://api.expedientecheck.com' antes de desplegar a producción.
 const API  = 'https://api.expedientecheck.com';
 const SLUG = new URLSearchParams(window.location.search).get('e') || 'tacna';
 
@@ -1245,6 +1301,38 @@ function renderStats() {
   document.getElementById('stat-verde').textContent              = cVerde;
   document.getElementById('stat-saldo-pim').textContent          = fmtM(saldoPim);
   document.getElementById('stat-saldo-financiar').textContent    = saldoFinanciar > 0 ? fmtM(saldoFinanciar) : '—';
+
+  // Presupuesto Total del Pliego (incluye genéricos — cifra Consulta Amigable
+  // MEF). Se calcula en sync-certificado-comprometido.js y llega vía
+  // /api/entidad/:slug. Si la entidad aún no tiene una corrida del sync (o
+  // la tabla recién se creó), el bloque queda oculto en vez de mostrar
+  // ceros engañosos.
+  const pliego = kpisEntidad.pliego;
+  const bloquePliego = document.getElementById('bloque-pliego');
+  if (pliego) {
+    bloquePliego.style.display = '';
+    const pliegoPct = pliego.pim_total > 0
+      ? ((pliego.devengado_total / pliego.pim_total) * 100).toFixed(1)
+      : '—';
+    document.getElementById('pliego-lineas').textContent    = pliego.lineas_con_presupuesto;
+    document.getElementById('pliego-pim').textContent       = fmtM(pliego.pim_total);
+    document.getElementById('pliego-devengado').textContent = fmtM(pliego.devengado_total);
+    document.getElementById('pliego-dev-pct').textContent   = `${pliegoPct}% del PIM`;
+    document.getElementById('pliego-saldo').textContent     = fmtM(pliego.saldo_pim);
+    // ssi.total — ese viene de otra tabla (ssi_inversiones, sincronizada por
+    // SSI-MEF directo) que puede ir un paso adelante o atrás de esta consulta
+    // en vivo a Datos Abiertos MEF. Mezclar ambos números en la misma frase
+    // parecía un error de datos cuando en realidad son dos fuentes distintas.
+    const lineasInvertePe = obras.length;
+    const lineasFuera = pliego.lineas_con_presupuesto - lineasInvertePe;
+    document.getElementById('pliego-disclosure').textContent =
+      `Incluye ${lineasFuera} línea(s) presupuestal(es) fuera del marco Invierte.pe ` +
+      `(estudios de preinversión, iniciativas menores y líneas genéricas sin CUI de inversión) — ${lineasInvertePe} inversión(es) ` +
+      `sí están activas en el marco Invierte.pe con presupuesto/PIM mayor a cero. El seguimiento institucional detallado ` +
+      `de ExpedienteCheck (abajo) refleja este número exacto.`;
+  } else {
+    bloquePliego.style.display = 'none';
+  }
 
   const banner = document.getElementById('alert-banner');
   if (cRojo > 0) {
