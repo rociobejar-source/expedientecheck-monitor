@@ -1493,7 +1493,7 @@ function renderTabla() {
       <td class="col-estado">
         ${estadoDot}
         <div style="margin-top:7px">
-          <button class="btn-detalle" data-id="${o.id}">${puedeEditar ? 'Ver / Editar' : 'Ver detalle'}</button>
+          <button class="btn-detalle" data-cui="${o.cui}">${puedeEditar ? 'Ver / Editar' : 'Ver detalle'}</button>
         </div>
       </td>
     </tr>
@@ -1543,13 +1543,13 @@ function renderTabla() {
   tbody.querySelectorAll('.btn-detalle').forEach(btn => {
     btn.addEventListener('mouseenter', () => {
       btn._prefetchTimer = setTimeout(() => {
-        const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
+        const obra = obras.find(o => String(o.cui) === String(btn.dataset.cui));
         if (obra) fetchSeace(obra.cui);
       }, 300);
     });
     btn.addEventListener('mouseleave', () => clearTimeout(btn._prefetchTimer));
     btn.addEventListener('click', () => {
-      const obra = obras.find(o => o.id === parseInt(btn.dataset.id));
+      const obra = obras.find(o => String(o.cui) === String(btn.dataset.cui));
       if (!obra) return;
       abrirPopupDetalle(obra);
     });
