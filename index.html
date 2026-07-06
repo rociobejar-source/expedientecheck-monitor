@@ -1766,7 +1766,7 @@ async function abrirPopupDetalle(obra) {
     `style="border:none;background:none;cursor:pointer;font-size:11px;color:var(--muted);padding:0 2px" title="Copiar CUI">⎘</button>` +
     `<span style="margin-left:8px;font-size:11px">` +
     `<a href="${urlInfoobras}" target="_blank" style="color:var(--muted);text-decoration:none;margin-right:6px" title="Ver en Infobras">Infobras ↗</a>` +
-    `<a href="${urlSSI}"       target="_blank" style="color:var(--muted);text-decoration:none;margin-right:6px" title="Ver en SSI-MEF">SSI ↗</a>` +
+    `<a href="javascript:void(0)" onclick="abrirSSI('${urlSSI}')" style="color:var(--muted);text-decoration:none;margin-right:6px" title="Ver en SSI-MEF">SSI ↗</a>` +
     `<a href="${urlSEACE}"     target="_blank" style="color:var(--muted);text-decoration:none" title="Buscar en SEACE">SEACE ↗</a>` +
     `</span>`;
 
@@ -2677,7 +2677,7 @@ async function generarDiagnosticoPDF() {
 // ── WHATSAPP — comparte el mismo resumen que ya está en pantalla ──
 // Nota: se evitan emojis con par-surrogado (📊 🔴 🟡 👉) por el mismo
 // motivo que en diagnostico-ondemand.html — en Windows, el handoff del
-// navegador a WhatsApp Desktop los corrompe y llegan como "�".
+// navegador a WhatsApp Desktop los corrompe y llegan como "".
 function enviarWhatsAppMonitor() {
   if (!kpisEntidad || !obras.length) {
     alert('Todavía no terminan de cargar los datos del monitor. Espera un momento e inténtalo de nuevo.');
@@ -2707,8 +2707,43 @@ function enviarWhatsAppMonitor() {
 }
 
 // ── INICIO ───────────────────────────────────────────────────
-cargarObras();
-setInterval(cargarObras, 5 * 60 * 1000);
+  let tempSSIUrl = '';
+  function abrirSSI(url) {
+    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      tempSSIUrl = url;
+      document.getElementById('modal-ios-ssi').style.display = 'flex';
+    } else {
+      window.open(url, '_blank');
+    }
+  }
+  function confirmarSSI() {
+    document.getElementById('modal-ios-ssi').style.display = 'none';
+    if(tempSSIUrl) window.open(tempSSIUrl, '_blank');
+  }
+  function cerrarSSI() {
+    document.getElementById('modal-ios-ssi').style.display = 'none';
+  }
+
+  cargarObras();
+  setInterval(cargarObras, 5 * 60 * 1000);
 </script>
+
+<div class="overlay" id="modal-ios-ssi">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <button class="modal-close" onclick="cerrarSSI()">×</button>
+      <div class="modal-title">Aviso para usuarios de iPhone</div>
+      <div class="modal-meta">Error en portal del MEF</div>
+    </div>
+    <div class="modal-body" style="font-size:13px; line-height:1.5; padding-top:4px;">
+      <p style="margin-bottom:12px;">El portal del SSI actualmente presenta fallas técnicas en dispositivos móviles iOS. Si al abrir el enlace observas una pantalla gris con un mensaje de error <code>xhr: [object Object]</code>:</p>
+      <p style="margin-bottom:16px;">Por favor, selecciona <strong>"Solicitar sitio para computadoras"</strong> (Request Desktop Site) en las opciones de Safari <span style="background:#f3f3f3;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px">aA</span> para visualizarlo correctamente.</p>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button onclick="cerrarSSI()" style="padding:6px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; cursor:pointer; color:var(--text); font-family:inherit; font-size:12px;">Cancelar</button>
+        <button onclick="confirmarSSI()" style="padding:6px 12px; background:var(--accent); border:none; border-radius:6px; cursor:pointer; color:white; font-family:inherit; font-weight:600; font-size:12px;">Entendido, abrir enlace</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
