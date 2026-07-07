@@ -2420,6 +2420,74 @@ function dibujarResumenEjecutivo(st, d) {
   st.doc.line(x, y, x + w, y);
   y += 6;
 
+  // ── Presupuesto total del pliego (mismo bloque que el monitor) ──
+  if (d.pliego) {
+    const p = d.pliego;
+    const pPct = p.pim_total > 0 ? ((p.devengado_total / p.pim_total) * 100).toFixed(1) : '—';
+    const lineasFuera = Math.max(0, (Number(p.lineas_con_presupuesto) || 0) - d.total);
+    const notaPliego = `Incluye ${lineasFuera} línea(s) presupuestal(es) fuera del marco Invierte.pe (estudios de preinversión, iniciativas menores y líneas genéricas sin CUI de inversión) — ${d.total} inversión(es) sí están activas en el marco Invierte.pe con PIM mayor a cero; el seguimiento detallado refleja ese número exacto.`;
+    st.doc.setFont('helvetica', 'normal'); st.doc.setFontSize(6);
+    const notaLines = st.doc.splitTextToSize(notaPliego, w - 6);
+    const notaH = notaLines.length * 2.8;
+    const tGapP = 3, tWP = (w - 6 - 3 * tGapP) / 4, tHP = 15;
+    const pliegoH = 7 + tHP + 4 + notaH + 3;
+    pdfCard(st, x, y, w, pliegoH, PDF_COLORS.white, PDF_COLORS.border);
+    pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
+    st.doc.text('PRESUPUESTO TOTAL DEL PLIEGO · GASTO DE CAPITAL', x + 3, y + 5);
+    pdfSetFont(st, 'normal', 6, [176, 168, 152]);
+    st.doc.text('FUENTE: CONSULTA AMIGABLE MEF', x + w - 3, y + 5, { align: 'right' });
+    const tilesPliego = [
+      { lbl: 'LÍNEAS CON PRESUPUESTO', val: `${p.lineas_con_presupuesto ?? '—'}`, color: PDF_COLORS.navy,  sub: 'Con presupuesto vigente' },
+      { lbl: 'PIM (S/)',               val: fmtMpp(p.pim_total),                  color: PDF_COLORS.verde, sub: 'Presupuesto vigente' },
+      { lbl: 'DEVENGADO (S/)',         val: fmtMpp(p.devengado_total),            color: PDF_COLORS.verde, sub: `${pPct}% del PIM` },
+      { lbl: 'SALDO DE PIM (S/)',      val: fmtMpp(p.saldo_pim),                  color: PDF_COLORS.navy,  sub: 'Sin ejecutar este año' },
+    ];
+    tilesPliego.forEach((t, i) => {
+      const tx = x + 3 + i * (tWP + tGapP);
+      pdfCard(st, tx, y + 7, tWP, tHP, PDF_COLORS.cardBg, null);
+      pdfSetFont(st, 'bold', 5.6, PDF_COLORS.mutedLight);
+      st.doc.text(t.lbl, tx + 2.5, y + 11);
+      pdfSetFont(st, 'bold', 10, t.color);
+      st.doc.text(t.val, tx + 2.5, y + 16.5);
+      pdfSetFont(st, 'normal', 5.6, PDF_COLORS.muted);
+      st.doc.text(t.sub, tx + 2.5, y + 20.5);
+    });
+    pdfSetFont(st, 'normal', 6, PDF_COLORS.muted);
+    notaLines.forEach((l, i) => st.doc.text(l, x + 3, y + 7 + tHP + 4 + i * 2.8));
+    y += pliegoH + 3;
+  }
+
+  // ── Con seguimiento ExpedienteCheck (mismos 8 KPIs que el monitor) ──
+  {
+    const tGapS = 3, tWS = (w - 6 - 3 * tGapS) / 4, tHS = 15;
+    const segH = 7 + tHS + 3 + tHS + 3;
+    pdfCard(st, x, y, w, segH, PDF_COLORS.white, PDF_COLORS.border);
+    pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
+    st.doc.text('CON SEGUIMIENTO EXPEDIENTECHECK · NO GENÉRICAS', x + 3, y + 5);
+    const tilesSeg = [
+      { lbl: 'INVERSIONES CON PIM',     val: `${d.total}`,          color: PDF_COLORS.navy,  sub: 'Con PIM asignado > 0' },
+      { lbl: 'PIM (S/)',                val: fmtMpp(d.pimTotal),    color: PDF_COLORS.verde, sub: 'Presupuesto vigente' },
+      { lbl: 'DEVENGADO (S/)',          val: fmtMpp(d.devTotal),    color: PDF_COLORS.verde, sub: `${pctDev}% del PIM` },
+      { lbl: 'REQUIERE ATENCIÓN',       val: `${d.rojas}`,          color: PDF_COLORS.rojo,  sub: 'Con al menos 1 alerta roja' },
+      { lbl: 'REQUIERE SEGUIMIENTO',    val: `${d.amarillas}`,      color: PDF_COLORS.oro,   sub: 'Solo alertas amarillas' },
+      { lbl: 'SIN ALERTAS',             val: `${d.sinAlerta}`,      color: PDF_COLORS.verde, sub: 'Sin problemas detectados' },
+      { lbl: 'SALDO DE PIM (S/)',       val: fmtMpp(d.saldoPim),    color: PDF_COLORS.navy,  sub: 'PIM no devengado aún' },
+      { lbl: 'SALDO POR FINANCIAR (S/)', val: d.saldoFinanciar > 0 ? fmtMpp(d.saldoFinanciar) : '—', color: PDF_COLORS.oro, sub: 'Para culminar cartera activa' },
+    ];
+    tilesSeg.forEach((t, i) => {
+      const tx = x + 3 + (i % 4) * (tWS + tGapS);
+      const ty = y + 7 + Math.floor(i / 4) * (tHS + 3);
+      pdfCard(st, tx, ty, tWS, tHS, PDF_COLORS.cardBg, null);
+      pdfSetFont(st, 'bold', 5.6, PDF_COLORS.mutedLight);
+      st.doc.text(t.lbl, tx + 2.5, ty + 4);
+      pdfSetFont(st, 'bold', 10, t.color);
+      st.doc.text(t.val, tx + 2.5, ty + 9.5);
+      pdfSetFont(st, 'normal', 5.6, PDF_COLORS.muted);
+      st.doc.text(t.sub, tx + 2.5, ty + 13.5);
+    });
+    y += segH + 3;
+  }
+
   // KPIs principales
   const kpiGap = 4, kpiW = (w - 2 * kpiGap) / 3, kpiH = 25;
   const kpiData = [
@@ -2439,67 +2507,32 @@ function dibujarResumenEjecutivo(st, d) {
   });
   y += kpiH + 4;
 
-  // Estado del presupuesto
-  const barrasH = 46;
+  // Estado del presupuesto — barra por concepto con monto y porcentaje.
+  // Los saldos (PIM / por financiar) ya no se repiten aquí: viven en los
+  // KPIs "Con seguimiento ExpedienteCheck" de arriba.
+  const barrasH = 33;
   pdfCard(st, x, y, w, barrasH, PDF_COLORS.white, PDF_COLORS.border);
   pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
   st.doc.text('ESTADO DEL PRESUPUESTO', x + 3, y + 5);
   pdfSetFont(st, 'bold', 7.5, PDF_COLORS.navy);
   st.doc.text(`PIM total: ${fmtMpp(d.pimTotal)}`, x + w - 3, y + 5, { align: 'right' });
   const barRows = [
-    ['Devengado', pctDev, PDF_COLORS.verde],
-    ['Comprometido', pctComp, PDF_COLORS.oro],
-    ['Certificado', pctCert, [184, 200, 216]],
+    ['Devengado',    d.devTotal,  pctDev,  PDF_COLORS.verde],
+    ['Comprometido', d.compTotal, pctComp, PDF_COLORS.oro],
+    ['Certificado',  d.certTotal, pctCert, [148, 168, 190]],
   ];
-  let by = y + 11;
-  barRows.forEach(([lbl, pct, color]) => {
+  let by = y + 12;
+  barRows.forEach(([lbl, monto, pct, color]) => {
     pdfSetFont(st, 'normal', 7, PDF_COLORS.mutedLight);
-    st.doc.text(lbl, x + 3, by + 1.5);
-    pdfProgressBar(st, x + 26, by, w - 26 - 42, 2.2, parseFloat(pct), PDF_COLORS.border, color);
+    st.doc.text(lbl, x + 3, by + 1.8);
+    pdfSetFont(st, 'bold', 7, PDF_COLORS.text);
+    st.doc.text(fmtMpp(monto), x + 47, by + 1.8, { align: 'right' });
+    pdfProgressBar(st, x + 51, by - 0.4, w - 51 - 17, 2.6, parseFloat(pct), PDF_COLORS.border, color);
     pdfSetFont(st, 'bold', 7.5, PDF_COLORS.text);
     st.doc.text(`${pct}%`, x + w - 3, by + 1.8, { align: 'right' });
-    by += 6.5;
+    by += 7;
   });
-  by += 3;
-  const subW = (w - 6 - 4) / 2;
-  pdfCard(st, x + 3, by, subW, 15, PDF_COLORS.cardBg, null);
-  pdfSetFont(st, 'bold', 6.2, PDF_COLORS.mutedLight);
-  st.doc.text('SALDO PIM', x + 6, by + 5);
-  pdfSetFont(st, 'bold', 11, PDF_COLORS.rojo);
-  st.doc.text(fmtMpp(d.saldoPim), x + 6, by + 10.5);
-  const sub2x = x + 3 + subW + 4;
-  pdfCard(st, sub2x, by, subW, 15, PDF_COLORS.cardBg, null);
-  pdfSetFont(st, 'bold', 6.2, PDF_COLORS.mutedLight);
-  st.doc.text('SALDO POR FINANCIAR', sub2x + 3, by + 5);
-  pdfSetFont(st, 'bold', 11, PDF_COLORS.oro);
-  st.doc.text(d.saldoFinanciar > 0 ? fmtMpp(d.saldoFinanciar) : '—', sub2x + 3, by + 10.5);
   y += barrasH + 4;
-
-  // Ranking comparativo
-  const rankH = 30;
-  st.y = y; pdfEnsureSpace(st, rankH + 4); y = st.y;
-  pdfCard(st, x, y, w, rankH, PDF_COLORS.white, PDF_COLORS.border);
-  pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
-  st.doc.text('RANKING COMPARATIVO · % EJECUCIÓN PIM', x + 3, y + 5);
-  pdfSetFont(st, 'normal', 6, [176, 168, 152]);
-  st.doc.text('FUENTE: DATOS ABIERTOS MEF', x + w - 3, y + 5, { align: 'right' });
-  const rw = (w - 6 - 4) / 2;
-  [['DEPARTAMENTO', d.ranking?.dept], ['NACIONAL · PROVINCIALES', d.ranking?.nac]].forEach(([lbl, r], i) => {
-    const rx = x + 3 + i * (rw + 4);
-    pdfCard(st, rx, y + 8, rw, rankH - 11, PDF_COLORS.cardBg, null);
-    pdfSetFont(st, 'bold', 6, PDF_COLORS.mutedLight);
-    st.doc.text(lbl, rx + 3, y + 12.5);
-    if (r && r.pos) {
-      pdfSetFont(st, 'bold', 13, PDF_COLORS.navy);
-      st.doc.text(`${r.pos}°`, rx + 3, y + 18.5);
-      pdfSetFont(st, 'normal', 7, PDF_COLORS.mutedLight);
-      st.doc.text(`de ${r.total} · prom ${r.prom}%`, rx + 15, y + 18.5);
-    } else {
-      pdfSetFont(st, 'normal', 7.5, [176, 168, 152]);
-      st.doc.text('Sin datos disponibles', rx + 3, y + 17);
-    }
-  });
-  y += rankH + 4;
 
   // Desglose de alertas
   const catH = 22;
@@ -2546,8 +2579,11 @@ function dibujarResumenEjecutivo(st, d) {
       pdfSetFont(st, 'bold', 7, [200, 192, 180]);
       st.doc.text(`${i + 1}`, x, ty + 3);
       pdfSetFont(st, 'normal', 8, PDF_COLORS.text);
-      const nomLines = st.doc.splitTextToSize(o.nombre || '', w - 60);
-      nomLines.slice(0, 2).forEach((l, j) => st.doc.text(l, x + 6, ty + 3 + j * 3.5));
+      // Solo se dibujan 2 líneas del nombre — la altura de la fila debe
+      // reservar exactamente eso (antes reservaba el nombre completo y
+      // dejaba espacio muerto).
+      const nomLines = st.doc.splitTextToSize(o.nombre || '', w - 60).slice(0, 2);
+      nomLines.forEach((l, j) => st.doc.text(l, x + 6, ty + 3 + j * 3.5));
       pdfSetFont(st, 'normal', 7.5, PDF_COLORS.mutedLight);
       st.doc.text(fmtMpp(o.pim_2026), x + w - 32, ty + 3, { align: 'right' });
       if (peor) {
@@ -2564,16 +2600,8 @@ function dibujarResumenEjecutivo(st, d) {
     y = ty + 2;
   }
 
-  // Nota express
-  st.y = y; pdfEnsureSpace(st, 18); y = st.y;
-  pdfCard(st, x, y, w, 14, [255, 248, 232], [232, 212, 160]);
-  pdfSetFont(st, 'bold', 7, PDF_COLORS.amberTexto);
-  st.doc.text(`Este es el mismo diagnóstico que ves en el monitor de ${d.nombreEntidad}.`, x + 3, y + 5);
-  pdfSetFont(st, 'normal', 6.5, [106, 88, 48]);
-  pdfMultilineText(st, 'KPIs, alertas y ranking calculados con los datos ya sincronizados desde SSI-MEF, InfoObras y SEACE.', x + 3, y + 9, w - 6, 3);
-  y += 14 + 4;
-
   // Pie de página
+  st.y = y; pdfEnsureSpace(st, 8); y = st.y;
   pdfSetFont(st, 'normal', 6.5, [176, 168, 152]);
   st.doc.text('EXPEDIENTECHECK · MONITOR DE OBRAS', x, y + 3);
   st.doc.text(d.monitorUrl, x + w, y + 3, { align: 'right' });
@@ -2756,9 +2784,6 @@ async function generarDiagnosticoPDF() {
         return (b.pim_2026 || 0) - (a.pim_2026 || 0);
       });
 
-    label.textContent = 'Calculando ranking...';
-    const ranking = await obtenerRankingEntidad(nombreEntidad, kpisEntidad.entidad?.region);
-
     label.textContent = 'Generando PDF...';
     const fechaStr   = new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
     const monitorUrl = `${window.location.origin}${window.location.pathname}?e=${SLUG}`;
@@ -2767,7 +2792,8 @@ async function generarDiagnosticoPDF() {
     dibujarResumenEjecutivo(st, {
       nombreEntidad, total: conAlertas.length, rojas, amarillas, sinAlerta,
       pimTotal, devTotal, certTotal, compTotal, saldoPim, saldoFinanciar,
-      top3, ranking, fechaStr, monitorUrl,
+      top3, fechaStr, monitorUrl,
+      pliego: kpisEntidad.pliego || null,
     });
 
     pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
