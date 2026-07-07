@@ -1843,7 +1843,10 @@ async function abrirPopupDetalle(obra) {
   document.getElementById('pp-title').textContent = obra.nombre || 'Sin nombre';
   const cuiDisplay = obra.cui || '—';
   const slugLabel  = SLUG.charAt(0).toUpperCase() + SLUG.slice(1);
-  const urlInfoobras = `https://infobras.contraloria.gob.pe/infobrasweb`;
+  // Ficha directa de InfoObras si tenemos su código; si no, el portal general
+  const urlInfoobras = obra.infobras_codigo
+    ? `https://infobras.contraloria.gob.pe/InfobrasWeb/Mapa/Sumario?ObraId=${obra.infobras_codigo}`
+    : `https://infobras.contraloria.gob.pe/InfobrasWeb/`;
   const urlSSI       = `https://ofi5.mef.gob.pe/ssi/Ssi/Index?codigo=${cuiDisplay}&tipo=2`;
   const urlSEACE     = `https://prod2.seace.gob.pe/seacebus-uiwd-pub/buscadorPublico/buscadorPublico.xhtml#`;
   document.getElementById('pp-cui').innerHTML =
@@ -1852,7 +1855,7 @@ async function abrirPopupDetalle(obra) {
     `&nbsp;<button onclick="navigator.clipboard.writeText('${cuiDisplay}').then(()=>toast('CUI copiado','success'))" ` +
     `style="border:none;background:none;cursor:pointer;font-size:11px;color:var(--muted);padding:0 2px" title="Copiar CUI">⎘</button>` +
     `<span style="margin-left:8px;font-size:11px">` +
-    `<a href="${urlInfoobras}" target="_blank" style="color:var(--muted);text-decoration:none;margin-right:6px" title="Ver en Infobras">Infobras ↗</a>` +
+    `<a href="${urlInfoobras}" target="_blank" style="color:var(--muted);text-decoration:none;margin-right:6px" title="${obra.infobras_codigo ? 'Abrir ficha de la obra en InfoObras' : 'Obra sin código InfoObras — abrir portal InfoObras'}">Infobras ↗</a>` +
     `<a href="javascript:void(0)" onclick="abrirSSI('${urlSSI}')" style="color:var(--muted);text-decoration:none;margin-right:6px" title="Ver en SSI-MEF">SSI ↗</a>` +
     `<a href="${urlSEACE}"     target="_blank" style="color:var(--muted);text-decoration:none" title="Buscar en SEACE">SEACE ↗</a>` +
     `</span>`;
