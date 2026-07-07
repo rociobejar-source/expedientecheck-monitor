@@ -927,7 +927,7 @@
     <div class="alertas-info-body">
       <!-- Alertas de registro -->
       <div class="alerta-group-title">Alerta de registro</div>
-      <div class="alerta-row"><span class="badge rojo">F12B desactualizado</span>Sin registro de seguimiento en más de 10 días desde fin de mes</div>
+      <div class="alerta-row"><span class="badge rojo">F12B desactualizado</span>Más de 30 días sin actualizar el Formato 12-B (con margen de gracia los primeros 9 días de cada mes)</div>
       <div class="alerta-row"><span class="badge amarillo">Vence en Xd</span>Menos de 30 días para el fin contractual y avance menor a 80%</div>
 
       <!-- Alertas de avance -->
@@ -940,10 +940,12 @@
 
       <!-- Alertas presupuestales -->
       <div class="alerta-group-title">Alerta presupuestal</div>
-      <div class="alerta-row"><span class="badge rojo">Cerrada c/saldo PIM</span>Inversión cerrada pero con presupuesto del año sin ejecutar</div>
+      <div class="alerta-row"><span class="badge rojo">Cerrada c/saldo PIM</span>Inversión cerrada con saldo del año sin ejecutar mayor al 5% del costo del proyecto (mínimo S/ 100)</div>
+      <div class="alerta-row"><span class="badge amarillo">Cerrada c/ajuste pendiente</span>Inversión cerrada con un saldo pequeño sin ejecutar (menor al 5% del costo o a S/ 100)</div>
       <div class="alerta-row"><span class="badge amarillo">Sin presup. culminar</span>Tiene costo pendiente pero no tiene PIM disponible este año</div>
       <div class="alerta-row"><span class="badge amarillo">PIM sin ejecutar</span>Tiene PIM asignado pero devengado cero (después de julio)</div>
-      <div class="alerta-row"><span class="badge amarillo">Presupuesto inflado</span>El presupuesto pendiente del año supera al monto pendiente para cierre de la obra</div>
+      <div class="alerta-row"><span class="badge rojo">Presupuesto inflado</span>El presupuesto pendiente del año supera al monto pendiente para cierre en 5% o más del costo del proyecto</div>
+      <div class="alerta-row"><span class="badge amarillo">Ajuste presupuestal</span>El presupuesto pendiente del año supera al pendiente para cierre en menos del 5% del costo del proyecto</div>
 
       <!-- Alertas contractuales -->
       <div class="alerta-group-title">Alerta contractual</div>
@@ -1184,9 +1186,11 @@ document.getElementById('btn-actualizar').addEventListener('click', cargarObras)
 // Reglas (en orden de prioridad):
 //   1. CERRADO          → sin alerta
 //   2. Llenó este mes   → verde
-//   3. >30 días sin llenar → rojo  (prioridad sobre gracia)
-//   4. Día 1–9 y ≤30 días → gracia, sin alerta
-//   5. Día 10–30 y ≤30 días → amarillo
+//   3. Día 1–9 y llenó el mes anterior → gracia, sin alerta
+//      (el F12B del mes previo recién se declara en esos días)
+//   4. >30 días sin llenar → rojo
+//   5. Día 1–9 y ≤30 días → gracia, sin alerta
+//   6. Día 10–30 y ≤30 días → amarillo
 function evaluarF12B(ultFecDeclaEstim, estadoInversion) {
   if (estadoInversion === 'CERRADO') return { color: 'verde', label: '' };
 
@@ -1200,17 +1204,22 @@ function evaluarF12B(ultFecDeclaEstim, estadoInversion) {
     ultimaAct = new Date(y, m - 1, d);
   }
 
-  // Llenó este mes → verde siempre
   if (ultimaAct) {
+    // Llenó este mes → verde siempre
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
     if (ultimaAct >= inicioMes) return { color: 'verde', label: '' };
+
+    // Gracia: primeros 9 días del mes con F12B llenado el mes anterior,
+    // aunque ya hayan pasado más de 30 días desde ese registro
+    const inicioMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+    if (diaHoy < 10 && ultimaAct >= inicioMesAnterior) return { color: 'verde', label: '' };
   }
 
-  // >30 días sin llenar → rojo (tiene prioridad sobre el período de gracia)
   const diasSinLlenar = ultimaAct
     ? Math.floor((hoy - ultimaAct) / 86400000)
     : 999;
 
+  // >30 días sin llenar (sin gracia aplicable) → rojo
   if (diasSinLlenar > 30) {
     const label = diasSinLlenar < 999 ? `F12B +${diasSinLlenar}d` : 'Sin F12B';
     return { color: 'rojo', label };
@@ -1223,6 +1232,20 @@ function evaluarF12B(ultFecDeclaEstim, estadoInversion) {
   return { color: 'amarillo', label: `F12B +${diasSinLlenar}d` };
 }
 
+// ── MÁRGENES PRESUPUESTALES (guía: 5% del costo, umbral mínimo S/ 100) ──
+// Cerrada con saldo PIM: rojo solo si el saldo supera el margen
+function margenCerrada(costoActualizado) {
+  return Math.max((Number(costoActualizado) || 0) * 0.05, 100);
+}
+
+// Presupuesto inflado: pendiente del año vs pendiente para cierre.
+// Diferencia ≥ 5% del costo del proyecto → rojo ("Presupuesto inflado");
+// menor al 5% → amarillo ("Ajuste presupuestal"). null si no aplica.
+function nivelInflado(pendEjec, pendCierre, costoActualizado) {
+  if (!(pendEjec > 0 && pendCierre > 0 && pendEjec > pendCierre)) return null;
+  return (pendEjec - pendCierre) >= (Number(costoActualizado) || 0) * 0.05 ? 'rojo' : 'amarillo';
+}
+
 // ── CLASIFICACIÓN DE ALERTA POR INVERSIÓN ────────────────────
 function calcularAlertaInversion(o) {
   const cerrada  = o.estado_inversion === 'CERRADO';
@@ -1231,7 +1254,8 @@ function calcularAlertaInversion(o) {
 
   // Si está CERRADA — solo alertas presupuestales
   if (cerrada) {
-    if (saldoPim > 0) return 'rojo';    // A1: cerrada con saldo PIM
+    if (saldoPim > 0)                   // A1: rojo solo sobre el margen (5% / S/100)
+      return saldoPim >= margenCerrada(o.costo_actualizado) ? 'rojo' : 'amarillo';
     if (saldoFin > 0 && saldoPim <= 0) return 'amarillo'; // A2
     return 'verde';
   }
@@ -1246,11 +1270,16 @@ function calcularAlertaInversion(o) {
   const mesesIni   = fechaIni ? (hoy - fechaIni) / (30 * 86400000) : null;
   const diasParaFin = fechaFin ? Math.ceil((fechaFin - hoy) / 86400000) : null;
 
+  const _pEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
+  const _pCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
+  const _inflado = nivelInflado(_pEjec, _pCierre, o.costo_actualizado);
+
   // ROJO
   if (brecha !== null && brecha > 20)                                          return 'rojo';
   // F12B — usar evaluarF12B con ult_fec_decla_estim
   if (evaluarF12B(o.ult_fec_decla_estim).color === 'rojo')                     return 'rojo';
   if (fechaFin && fechaFin < hoy && (fis || 0) < 100)                         return 'rojo';
+  if (_inflado === 'rojo')                                                     return 'rojo';
 
   // AMARILLO
   if (evaluarF12B(o.ult_fec_decla_estim).color === 'amarillo')                 return 'amarillo';
@@ -1261,10 +1290,8 @@ function calcularAlertaInversion(o) {
   if (fis !== null && fin !== null && (fis - fin) > 20)                        return 'amarillo';
   if (diasParaFin !== null && diasParaFin >= 0 && diasParaFin <= 30 && (fis || 0) < 80) return 'amarillo';
 
-  // Presupuesto inflado
-  const _pEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
-  const _pCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
-  if (_pEjec > 0 && _pCierre > 0 && _pEjec > _pCierre) return 'amarillo';
+  // Ajuste presupuestal (inflado con diferencia menor al 5%)
+  if (_inflado === 'amarillo') return 'amarillo';
 
   // Alertas contractuales SEACE
   if (Array.isArray(o.seace_alertas) && o.seace_alertas.length) {
@@ -1399,7 +1426,9 @@ function renderTabla() {
     if (cerrada) {
       // Inversión cerrada — solo alertas presupuestales
       if (saldoPim > 0)
-        badges.push(`<span class="badge rojo">Cerrada c/saldo PIM</span>`);
+        badges.push(saldoPim >= margenCerrada(o.costo_actualizado)
+          ? `<span class="badge rojo">Cerrada c/saldo PIM</span>`
+          : `<span class="badge amarillo">Cerrada c/ajuste pendiente</span>`);
       if (saldoFinanc > 0 && saldoPim <= 0)
         badges.push(`<span class="badge amarillo">Sin presup. culminar</span>`);
     } else {
@@ -1445,11 +1474,16 @@ function renderTabla() {
         badges.push(`<span class="badge amarillo">Plazo menor normativa</span>`);
     }
 
-    // Presupuesto inflado
-    const _pendEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
-    const _pendCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
-    if (_pendEjec > 0 && _pendCierre > 0 && _pendEjec > _pendCierre)
-      badges.push(`<span class="badge amarillo">Presupuesto inflado</span>`);
+    // Presupuesto inflado (≥5%) / Ajuste presupuestal (<5%) — solo activas
+    if (!cerrada) {
+      const _pendEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
+      const _pendCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
+      const _inflado = nivelInflado(_pendEjec, _pendCierre, o.costo_actualizado);
+      if (_inflado === 'rojo')
+        badges.push(`<span class="badge rojo">Presupuesto inflado</span>`);
+      else if (_inflado === 'amarillo')
+        badges.push(`<span class="badge amarillo">Ajuste presupuestal</span>`);
+    }
 
     const todasAlertas = badges.length > 0
       ? `<div style="display:flex;flex-direction:column;gap:4px;">${badges.join('')}</div>`
@@ -1793,7 +1827,9 @@ async function abrirPopupDetalle(obra) {
   const mesesIni = fechaIni ? (hoy - fechaIni) / (30 * 86400000) : null;
 
   if (cerrada) {
-    if (saldoPim > 0) alertasMef.push({ t: 'rojo', txt: 'Cerrada c/saldo PIM' });
+    if (saldoPim > 0) alertasMef.push(saldoPim >= margenCerrada(obra.costo_actualizado)
+      ? { t: 'rojo', txt: 'Cerrada c/saldo PIM' }
+      : { t: 'amarillo', txt: 'Cerrada c/ajuste pendiente' });
     if (saldoFin > 0 && saldoPim <= 0) alertasMef.push({ t: 'amarillo', txt: 'Sin presup. culminar' });
   } else {
     if (brecha !== null && brecha > 20) alertasMef.push({ t: 'rojo', txt: 'Brecha >20%' });
@@ -1810,11 +1846,14 @@ async function abrirPopupDetalle(obra) {
       alertasMef.push({ t: 'amarillo', txt: 'Arranque lento' });
     if (fis !== null && fin !== null && (fis - fin) > 20)
       alertasMef.push({ t: 'amarillo', txt: 'Brecha invertida' });
-    // Presupuesto inflado: pendiente PIM año > pendiente para cierre
+    // Presupuesto inflado (≥5%) / Ajuste presupuestal (<5%)
     const _pendEjecMef   = (Number(obra.pim_2026) || 0) - (Number(obra.devengado_2026) || 0);
     const _pendCierreMef = (Number(obra.costo_actualizado) || 0) - (Number(obra.dev_acumulado) || 0);
-    if (_pendEjecMef > 0 && _pendCierreMef > 0 && _pendEjecMef > _pendCierreMef)
-      alertasMef.push({ t: 'amarillo', txt: 'Presupuesto inflado' });
+    const _infladoMef = nivelInflado(_pendEjecMef, _pendCierreMef, obra.costo_actualizado);
+    if (_infladoMef === 'rojo')
+      alertasMef.push({ t: 'rojo', txt: 'Presupuesto inflado' });
+    else if (_infladoMef === 'amarillo')
+      alertasMef.push({ t: 'amarillo', txt: 'Ajuste presupuestal' });
   }
 
   // Renderizar alertas MEF (SEACE se agrega después)
@@ -2108,8 +2147,12 @@ function construirAlertasObra(o) {
   const mesesIni = fechaIni ? (hoy - fechaIni) / (30 * 86400000) : null;
 
   if (cerrada) {
-    if (saldoPim > 0) alertas.push({ nivel: 'rojo', texto: 'Cerrada c/saldo PIM', codigo: 'CERRADA_SALDO_PIM',
-      desc: `La inversión figura como CERRADA en el SSI-MEF pero mantiene un saldo de PIM de ${fmtMpp(saldoPim)} sin devengar. Un cierre con presupuesto no ejecutado puede interpretarse como una mala programación presupuestal o encubrir gasto pendiente sin sustento. La normativa de cierre presupuestal del MEF exige que los saldos no comprometidos al 31 de diciembre se reviertan al Tesoro Público. Se recomienda verificar el motivo del cierre y regularizar el estado en el sistema antes del cierre del ejercicio fiscal.` });
+    if (saldoPim > 0 && saldoPim >= margenCerrada(o.costo_actualizado))
+      alertas.push({ nivel: 'rojo', texto: 'Cerrada c/saldo PIM', codigo: 'CERRADA_SALDO_PIM',
+        desc: `La inversión figura como CERRADA en el SSI-MEF pero mantiene un saldo de PIM de ${fmtMpp(saldoPim)} sin devengar, superior al margen del 5% del costo del proyecto. Un cierre con presupuesto no ejecutado puede interpretarse como una mala programación presupuestal o encubrir gasto pendiente sin sustento. La normativa de cierre presupuestal del MEF exige que los saldos no comprometidos al 31 de diciembre se reviertan al Tesoro Público. Se recomienda verificar el motivo del cierre y regularizar el estado en el sistema antes del cierre del ejercicio fiscal.` });
+    else if (saldoPim > 0)
+      alertas.push({ nivel: 'amarillo', texto: 'Cerrada c/ajuste pendiente', codigo: 'CERRADA_AJUSTE_PENDIENTE',
+        desc: `La inversión figura como CERRADA en el SSI-MEF con un saldo de PIM de ${fmtMpp(saldoPim)} sin devengar — un monto pequeño, por debajo del margen del 5% del costo del proyecto (o de S/ 100). Suele corresponder a un ajuste o redondeo presupuestal pendiente de regularizar, sin el nivel de riesgo de un cierre con saldo significativo. Se recomienda regularizar el saldo antes del cierre del ejercicio para evitar observaciones formales.` });
     if (saldoFinanc > 0 && saldoPim <= 0) alertas.push({ nivel: 'amarillo', texto: 'Sin presup. culminar', codigo: 'SIN_PRESUP_CULMINAR',
       desc: `El proyecto tiene un saldo pendiente para culminar de ${fmtMpp(saldoFinanc)} (diferencia entre el costo actualizado y lo devengado acumulado), pero no cuenta con PIM disponible este año para cubrirlo. Sin una modificación presupuestaria antes del cierre del año, la obra no podrá continuar su ejecución este año. Se recomienda evaluar la necesidad de una ampliación presupuestal o de una reformulación del cronograma financiero.` });
   } else {
@@ -2118,7 +2161,7 @@ function construirAlertasObra(o) {
 
     const _f12b = evaluarF12B(o.ult_fec_decla_estim, o.estado_inversion);
     if (_f12b.color !== 'verde' && _f12b.label) alertas.push({ nivel: _f12b.color, texto: _f12b.label, codigo: 'F12B_DESACTUALIZADO',
-      desc: `La obra está en ejecución con avance físico registrado pero el Formato 12B no se ha actualizado en más de 45 días${o.ult_fec_decla_estim ? ` (última actualización: ${o.ult_fec_decla_estim})` : ''}. La Directiva de Seguimiento del MEF exige actualización mensual hasta el cierre de la inversión. Contraloría revisa este campo en sus visitas de campo — un F12B desactualizado es causal directa de observación.` });
+      desc: `La obra está en ejecución pero el Formato 12-B no se ha actualizado en más de 30 días${o.ult_fec_decla_estim ? ` (última actualización: ${o.ult_fec_decla_estim})` : ''}, considerando el margen de gracia de los primeros 9 días de cada mes para declarar el mes anterior. La Directiva de Seguimiento del MEF exige actualización mensual hasta el cierre de la inversión. Contraloría revisa este campo en sus visitas de campo — un F12B desactualizado es causal directa de observación.` });
 
     if (fechaFin && fechaFin < hoy && (fis || 0) < 100) alertas.push({ nivel: 'rojo', texto: 'Obra atrasada', codigo: 'OBRA_ATRASADA',
       desc: `La fecha de culminación registrada en el SSI-MEF ya venció y la obra reporta un avance físico de ${pct1(fis)}, por debajo del 100%. Ejecutar fuera del plazo contractual sin una ampliación de plazo formalizada y aprobada es causal de penalidad económica al contratista y expone a la entidad a observación de Contraloría por incumplimiento del cronograma del expediente técnico aprobado. Se recomienda verificar si existe una Resolución de ampliación de plazo vigente que sustente la demora y registrar la fecha correcta.` });
@@ -2147,9 +2190,13 @@ function construirAlertasObra(o) {
 
     const _pendEjec   = (Number(o.pim_2026) || 0) - (Number(o.devengado_2026) || 0);
     const _pendCierre = (Number(o.costo_actualizado) || 0) - (Number(o.dev_acumulado) || 0);
-    if (_pendEjec > 0 && _pendCierre > 0 && _pendEjec > _pendCierre)
-      alertas.push({ nivel: 'amarillo', texto: 'Presupuesto inflado', codigo: 'PRESUP_INFLADO',
-        desc: `El PIM pendiente de ejecutar este año (${fmtMpp(_pendEjec)}) supera en ${fmtMpp(_pendEjec - _pendCierre)} lo que le falta al proyecto para terminar (${fmtMpp(_pendCierre)}). Hay presupuesto sobreasignado que no tiene respaldo en los registros: riesgo de devolución al MEF al cierre del año, necesidad de modificación presupuestal o de actualización de costo del proyecto.` });
+    const _inflado = nivelInflado(_pendEjec, _pendCierre, o.costo_actualizado);
+    if (_inflado === 'rojo')
+      alertas.push({ nivel: 'rojo', texto: 'Presupuesto inflado', codigo: 'PRESUP_INFLADO',
+        desc: `El PIM pendiente de ejecutar este año (${fmtMpp(_pendEjec)}) supera en ${fmtMpp(_pendEjec - _pendCierre)} lo que le falta al proyecto para terminar (${fmtMpp(_pendCierre)}) — una diferencia igual o mayor al 5% del costo del proyecto. Hay presupuesto sobreasignado que no tiene respaldo en los registros: riesgo de devolución al MEF al cierre del año, necesidad de modificación presupuestal o de actualización de costo del proyecto.` });
+    else if (_inflado === 'amarillo')
+      alertas.push({ nivel: 'amarillo', texto: 'Ajuste presupuestal', codigo: 'AJUSTE_PRESUPUESTAL',
+        desc: `El PIM pendiente de ejecutar este año (${fmtMpp(_pendEjec)}) supera en ${fmtMpp(_pendEjec - _pendCierre)} lo que le falta al proyecto para terminar (${fmtMpp(_pendCierre)}) — una diferencia menor al 5% del costo del proyecto. Indica un pequeño desfase entre la programación presupuestal y el costo del proyecto; conviene corregirlo en la próxima reprogramación, sin el nivel de riesgo de un presupuesto inflado.` });
   }
 
   if (Array.isArray(o.seace_alertas) && o.seace_alertas.length) {
