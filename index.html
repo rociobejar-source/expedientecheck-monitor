@@ -203,6 +203,21 @@
     }
     .filter-btn.active { background: var(--header); border-color: var(--header); color: #fff; }
     .filter-btn:hover:not(.active) { border-color: var(--text); color: var(--text); }
+    .filter-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 12px;
+      cursor: pointer;
+      max-width: 340px;
+      transition: all 0.15s;
+    }
+    .filter-select:hover, .filter-select:focus { border-color: var(--text); color: var(--text); outline: none; }
+    .filter-select.active { background: var(--header); border-color: var(--header); color: #fff; }
 
     /* ── TABLE ── */
     .table-wrap {
@@ -968,6 +983,9 @@
     <button class="filter-btn" data-filter="rojo">Requiere atención (<span id="f-rojo">0</span>)</button>
     <button class="filter-btn" data-filter="amarillo">Requiere seguimiento (<span id="f-amarillo">0</span>)</button>
     <button class="filter-btn" data-filter="verde">Sin alertas (<span id="f-verde">0</span>)</button>
+    <select class="filter-select" id="filtro-uei" title="Filtrar por Unidad Ejecutora de Inversiones">
+      <option value="">UEI: todas</option>
+    </select>
   </div>
 
   <!-- TABLE -->
@@ -1136,6 +1154,30 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
   });
 });
 
+// ── FILTRO UEI (desplegable) ─────────────────────────────────
+let filtroUei = '';
+document.getElementById('filtro-uei').addEventListener('change', e => {
+  filtroUei = e.target.value;
+  e.target.classList.toggle('active', !!filtroUei);
+  renderTabla();
+});
+
+// Poblar el desplegable con las UEI únicas de las obras cargadas
+function renderFiltroUei() {
+  const sel  = document.getElementById('filtro-uei');
+  const ueis = [...new Set(obras.map(o => o.uei).filter(Boolean))].sort();
+  const seleccionActual = filtroUei;
+  sel.innerHTML = '<option value="">UEI: todas</option>' +
+    ueis.map(u => `<option value="${u.replace(/"/g, '&quot;')}">${u}</option>`).join('');
+  // Mantener la selección si la UEI sigue existiendo
+  if (seleccionActual && ueis.includes(seleccionActual)) {
+    sel.value = seleccionActual;
+  } else {
+    filtroUei = '';
+    sel.classList.remove('active');
+  }
+}
+
 // ── CARGAR DATOS ─────────────────────────────────────────────
 async function cargarObras() {
   const btn  = document.getElementById('btn-actualizar');
@@ -1168,6 +1210,7 @@ async function cargarObras() {
 
     renderStats();
     renderFiltros();
+    renderFiltroUei();
     renderTabla();
 
   } catch (err) {
@@ -1395,6 +1438,8 @@ function renderTabla() {
 
   let filtradas = filtro === 'todas' ? obras
     : obras.filter(o => calcularAlertaInversion(o) === filtro);
+
+  if (filtroUei) filtradas = filtradas.filter(o => o.uei === filtroUei);
 
   if (!filtradas.length) {
     tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">Sin obras para mostrar</div></td></tr>`;
@@ -2555,6 +2600,11 @@ function dibujarTarjetaInversion(st, o) {
   const nombreLines = st.doc.splitTextToSize(o.nombre || 'Sin nombre', w - 34);
   const nombreH = nombreLines.length * 4.6;
 
+  // UEI debajo del nombre de la inversión
+  st.doc.setFont('helvetica', 'normal'); st.doc.setFontSize(7.5);
+  const ueiLines = o.uei ? st.doc.splitTextToSize(`UEI: ${o.uei}`, w - 34) : [];
+  const ueiH = ueiLines.length ? ueiLines.length * 3.6 + 1.5 : 0;
+
   st.doc.setFont('helvetica', 'normal'); st.doc.setFontSize(8.3);
   const descHeights = o._alertas.map(a => {
     if (!a.desc) return 0;
@@ -2566,7 +2616,7 @@ function dibujarTarjetaInversion(st, o) {
   const progH     = avFin !== null ? 13 : 6.5;
   const badgesH   = o._alertas.length ? 7 : 0;
   const paddingV  = 10;
-  const totalH = paddingV + nombreH + 3 + kpiRowH + 3 + progH + 2 + badgesH + descTotalH + 4;
+  const totalH = paddingV + nombreH + ueiH + 3 + kpiRowH + 3 + progH + 2 + badgesH + descTotalH + 4;
 
   pdfEnsureSpace(st, totalH);
   const yStart = st.y;
@@ -2579,7 +2629,13 @@ function dibujarTarjetaInversion(st, o) {
   nombreLines.forEach((line, i) => st.doc.text(line, x + 2, cy + i * 4.6));
   pdfSetFont(st, 'normal', 8, PDF_COLORS.muted);
   st.doc.text(`CUI ${o.cui}`, x + w - 2, yStart + 5, { align: 'right' });
-  cy += nombreH + 3;
+  cy += nombreH;
+  if (ueiLines.length) {
+    pdfSetFont(st, 'normal', 7.5, PDF_COLORS.muted);
+    ueiLines.forEach((line, i) => st.doc.text(line, x + 2, cy + i * 3.6));
+    cy += ueiH;
+  }
+  cy += 3;
 
   // 4 recuadros de KPI
   const kpiGap = 2, kpiW = (w - 3 * kpiGap) / 4;
