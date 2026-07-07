@@ -764,6 +764,12 @@
       background: #f5f3ee; border-radius: 8px; padding: 12px 14px;
       font-size: 12px; color: var(--muted); text-align: center;
     }
+    /* Nota de alcance del módulo SEACE */
+    .pp-ctr-scope {
+      font-size: 11px; color: var(--muted); line-height: 1.5;
+      margin: -4px 0 10px;
+    }
+    .pp-ctr-scope a { color: var(--muted); }
     /* Pestañas contractuales */
     .pp-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
     .pp-tab-btn {
@@ -941,6 +947,7 @@
 
       <!-- Alertas contractuales -->
       <div class="alerta-group-title">Alerta contractual</div>
+      <div class="alerta-row" style="font-style:italic">Las alertas contractuales solo cubren procesos de <strong>obra</strong> y <strong>supervisión de obra</strong>. Las contrataciones de bienes y servicios deben revisarse directamente en SEACE.</div>
       <div class="alerta-row"><span class="badge rojo">Pérdida de buena pro</span>El postor ganador perdió la buena pro en el proceso de contratación</div>
       <div class="alerta-row"><span class="badge amarillo">Etapa vencida sin doc</span>Etapa del proceso SEACE vencida sin documento publicado</div>
       <div class="alerta-row"><span class="badge amarillo">Adjudicado sin contrato</span>Proceso adjudicado pero sin contrato formalizado en SEACE</div>
@@ -1052,6 +1059,7 @@
       <div class="pp-bars"    id="pp-bars"></div>
       <hr class="pp-divider">
       <p class="pp-section">📄 Información contractual</p>
+      <p class="pp-ctr-scope">La plataforma realiza seguimiento únicamente a contratos de <strong>obra</strong> y <strong>supervisión de obra</strong>. Los procesos de contratación de bienes y servicios deben revisarse directamente en <a href="https://prod2.seace.gob.pe/seacebus-uiwd-pub/buscadorPublico/buscadorPublico.xhtml#" target="_blank">SEACE ↗</a>.</p>
       <div id="pp-ctr"></div>
       <hr class="pp-divider" id="pp-tl-divider" style="display:none">
       <p class="pp-section" id="pp-tl-label" style="display:none">📅 Cronograma del proceso</p>
@@ -1877,16 +1885,22 @@ async function abrirPopupDetalle(obra) {
       : Array.isArray(data.contrato) ? data.contrato
       : data.contrato ? [data.contrato]
       : [];
+    // Marcador del scraper: el CUI tiene procesos en SEACE pero ninguno de
+    // obra/supervisión (solo bienes/servicios) → mostrar nota específica
+    const markerSoloBienes = contratosArr.find(c =>
+      typeof c.descripcion_objeto === 'string' && c.descripcion_objeto.startsWith('SOLO_OTROS_OBJETOS'));
+    // Excluir filas marcador (seace_found=false) de las pestañas de contratos
+    const contratosReales = contratosArr.filter(c => c.seace_found !== false);
     // Priorizar CONTRATADO > ADJUDICADO > EN_PROCESO > DESIERTO
     const prioridad = { 'CONTRATADO': 0, 'ADJUDICADO': 1, 'EN_PROCESO': 2, 'DESIERTO': 3 };
-    const contratosOrdenados = [...contratosArr].sort((a, b) =>
+    const contratosOrdenados = [...contratosReales].sort((a, b) =>
       (prioridad[a.estado_proceso] ?? 9) - (prioridad[b.estado_proceso] ?? 9));
 
     let contratoObra        = contratosOrdenados.find(c => c.objeto_contratacion === 'Obra') || null;
     let contratoSupervision = contratosOrdenados.find(c => c.objeto_contratacion === 'Consultoría de Obra') || null;
     // Fallback: single contrato without objeto_contratacion → show in Obra tab
-    if (!contratoObra && !contratoSupervision && contratosArr.length > 0)
-      contratoObra = contratosArr[0];
+    if (!contratoObra && !contratoSupervision && contratosReales.length > 0)
+      contratoObra = contratosReales[0];
 
     // Alertas SEACE → pills con color correcto
     const seacePills = [];
@@ -1907,8 +1921,12 @@ async function abrirPopupDetalle(obra) {
     renderAlerts(seacePills);
 
     if (!contratoObra && !contratoSupervision) {
-      document.getElementById('pp-ctr').innerHTML =
-        '<div class="pp-no-seace">Sin proceso de contratación registrado en SEACE para este CUI</div>';
+      const objetosOtros = markerSoloBienes
+        ? (markerSoloBienes.descripcion_objeto.split(':')[1] || '').trim()
+        : '';
+      document.getElementById('pp-ctr').innerHTML = markerSoloBienes
+        ? `<div class="pp-no-seace">Esta inversión solo registra procesos de <strong>${objetosOtros || 'bienes/servicios'}</strong> en SEACE, a los que la plataforma no hace seguimiento. Revísalos directamente en <a href="${urlSEACE}" target="_blank">SEACE ↗</a>.</div>`
+        : `<div class="pp-no-seace">Sin procesos de obra ni supervisión de obra registrados en SEACE para esta inversión. Si tiene contrataciones de bienes o servicios, revísalas directamente en <a href="${urlSEACE}" target="_blank">SEACE ↗</a>.</div>`;
     } else {
       const estadoMap = {
         EN_PROCESO: { label: 'En proceso — convocatoria activa', cls: 'proceso' },
@@ -1929,7 +1947,7 @@ async function abrirPopupDetalle(obra) {
           b.classList.toggle('active', b.dataset.tab === tabId));
 
         const c = tabId === 'obra' ? contratoObra : contratoSupervision;
-        const label = tabId === 'obra' ? 'obra' : 'supervisión';
+        const label = tabId === 'obra' ? 'obra' : 'supervisión de obra';
         const content = document.getElementById('pp-tab-content');
 
         if (!c || !c.estado_proceso) {
