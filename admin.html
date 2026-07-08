@@ -400,6 +400,26 @@
           </tbody>
         </table>
       </div>
+
+      <h2 class="section-title">Rendimiento del mes <span style="font-weight:400;color:var(--muted);font-size:12px;">· días con avance financiero vs. sin avance</span></h2>
+      <div class="table-wrap" id="wrap-rendimiento">
+        <table>
+          <thead>
+            <tr>
+              <th>Municipio</th>
+              <th>Mes</th>
+              <th>Mediciones</th>
+              <th>Con avance</th>
+              <th>Sin avance</th>
+              <th>Devengado del mes</th>
+              <th>Día más estancado</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-rendimiento">
+            <tr><td colspan="7" class="loading">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </main>
 
@@ -1017,9 +1037,33 @@
             tbodyCro.appendChild(tr);
           });
         }
+
+        // Rendimiento del mes (v_rendimiento_mensual)
+        const tbodyRen = document.getElementById('tbody-rendimiento');
+        const ren = data.rendimiento || [];
+        if (!ren.length) {
+          tbodyRen.innerHTML = '<tr><td colspan="7"><div class="empty-state">Acumulando datos · la primera medición fue hoy; el rendimiento aparece a partir de mañana, cuando haya dos días para comparar.</div></td></tr>';
+        } else {
+          const fmtMes = m => new Date(m + 'T00:00:00').toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+          tbodyRen.innerHTML = '';
+          ren.forEach(r => {
+            const nombreCorto = esc(r.entidad_nombre).replace(/^Municipalidad (Provincial|Distrital) de /i, '');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${nombreCorto}</td>
+              <td style="text-transform:capitalize;">${fmtMes(r.mes)}</td>
+              <td>${r.dias_medidos}</td>
+              <td style="color:var(--accent);font-weight:600;">${r.dias_con_avance}</td>
+              <td style="color:${r.dias_sin_avance > 0 ? 'var(--rojo)' : 'var(--muted)'};font-weight:600;">${r.dias_sin_avance}</td>
+              <td class="user-email" style="color:var(--text);">S/ ${fmtMonto(r.soles_devengados_en_mes)}</td>
+              <td style="text-transform:capitalize;">${r.dia_semana_mas_estancado ? esc(r.dia_semana_mas_estancado) : '—'}</td>`;
+            tbodyRen.appendChild(tr);
+          });
+        }
       } catch (err) {
         gridEfi.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Error: ${esc(err.message)}</div>`;
         tbodyCro.innerHTML = `<tr><td colspan="6"><div class="empty-state">Error: ${esc(err.message)}</div></td></tr>`;
+        document.getElementById('tbody-rendimiento').innerHTML = `<tr><td colspan="7"><div class="empty-state">Error: ${esc(err.message)}</div></td></tr>`;
       }
     }
 
