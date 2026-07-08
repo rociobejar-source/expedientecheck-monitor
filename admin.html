@@ -1326,7 +1326,10 @@
       // position:absolute/fixed. Verificado con Chrome headless: off-screen y
       // absolute → canvas altura 0; en flujo → canvas completo.
       // Un overlay tapa la pantalla mientras se genera.
-      cont.style.cssText = 'display:block;width:800px;background:#fff;padding:24px;';
+      // Ancho ≤750px: por encima (794-800px) html2canvas recorta la derecha al
+      // capturar (verificado con thumbnails headless); a 745px entra completo y
+      // html2pdf lo escala a A4 sin recortar.
+      cont.style.cssText = 'display:block;width:745px;background:#fff;padding:16px;';
       const ov = document.createElement('div');
       ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,15,15,.78);z-index:9999;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-family:var(--sans);';
       ov.textContent = '⏳ Generando PDF…';
@@ -1335,7 +1338,7 @@
       const nombreArch = muniActivo ? cortoMuni(muniActivo).replace(/\s+/g, '-') : '3-municipios';
       try {
         await html2pdf().set({
-          margin: [10, 10, 12, 10],
+          margin: [6, 6, 6, 6],
           filename: `Reporte-Impacto-${nombreArch}-${new Date().toISOString().slice(0, 10)}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
           // OJO: no usar windowWidth — emula una ventana más angosta que el

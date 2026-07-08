@@ -1292,7 +1292,76 @@ document.getElementById('inputEjecutora').addEventListener('keydown', e => {
 });
 
 // ── GENERAR PDF ──────────────────────────────────────────────────
-function imprimirReporte() {
+async function imprimirReporte() {
+  const resultadoEl = document.getElementById('resultado');
+  if (!resultadoEl || !resultadoEl.innerHTML.trim()) return;
+
+  const btn = document.querySelector('.btn-pdf');
+  const txtBtn = btn ? btn.textContent : '';
+
+  // Abrir todos los grupos de UE para que el PDF los incluya
+  const detallesUE = Array.from(resultadoEl.querySelectorAll('details.ue-group'));
+  const estadoPrevio = detallesUE.map(d => d.open);
+  detallesUE.forEach(d => d.open = true);
+
+  const contenido = resultadoEl.innerHTML;
+  const ejecutora = document.querySelector('.report-muni')?.textContent || 'Diagnostico';
+  const nombreArch = ejecutora.replace(/[^\w\sÁÉÍÓÚÑáéíóúñ-]/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'Diagnostico';
+
+  // Overlay de "generando…" para tapar el parpadeo del render
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(11,35,65,.55);' +
+    'display:flex;align-items:center;justify-content:center;color:#fff;font:600 15px Segoe UI,system-ui,sans-serif;';
+  overlay.textContent = '⏳ Generando PDF…';
+  document.body.appendChild(overlay);
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando…'; }
+
+  // Contenedor EN EL FLUJO normal — html2pdf 0.10.1 colapsa a altura 0
+  // cualquier contenedor position:absolute/fixed y el PDF sale en blanco.
+  // Ancho ≤750px: por encima (794-800px) html2canvas recorta la derecha al
+  // capturar (verificado con thumbnails headless); a 750px entra el ancho
+  // completo y html2pdf lo escala a A4 sin recortar. NO usar windowWidth
+  // (desencuadra y recorta por la izquierda).
+  const cont = document.createElement('div');
+  cont.style.cssText = 'display:block;width:745px;background:#fff;padding:14px;color:var(--text);';
+  cont.innerHTML =
+    '<style>' +
+    // El reporte inyectado en #resultado incluye el panel "Compartir
+    // diagnóstico" (.actions) y otros elementos .no-print; ocultarlos en el PDF.
+    '.pdf-report .no-print,.pdf-report .actions,.pdf-report .historial,.pdf-report .search-panel{display:none!important;}' +
+    '.pdf-report .section{overflow:visible!important;break-inside:auto;page-break-inside:auto;}' +
+    '.pdf-report .inv-card{break-inside:avoid;page-break-inside:avoid;}' +
+    '.pdf-report .slide-alcalde{page-break-after:always;}' +
+    '.pdf-report details.ue-group>.ue-summary{list-style:none;}' +
+    '</style>' +
+    '<div class="pdf-report">' + contenido + '</div>';
+  document.body.appendChild(cont);
+
+  // Restaurar el estado de los <details> en la página visible
+  detallesUE.forEach((d, i) => d.open = estadoPrevio[i]);
+
+  try {
+    await html2pdf().set({
+      margin: [6, 6, 6, 6],
+      filename: `Diagnostico-${nombreArch}-${new Date().toISOString().slice(0, 10)}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      // OJO: no usar windowWidth — desencuadra la captura (recorta por la izquierda)
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] },
+    }).from(cont).save();
+  } catch (e) {
+    console.error('[PDF] error:', e);
+    alert('No se pudo generar el PDF: ' + (e.message || e));
+  } finally {
+    cont.remove();
+    overlay.remove();
+    if (btn) { btn.disabled = false; btn.textContent = txtBtn; }
+  }
+}
+
+// (obsoleta) generación por ventana de impresión — reemplazada por descarga directa
+function _imprimirReporteLegacy() {
   const resultadoEl = document.getElementById('resultado');
   const detallesUE = Array.from(resultadoEl.querySelectorAll('details.ue-group'));
   const estadoPrevio = detallesUE.map(d => d.open);
