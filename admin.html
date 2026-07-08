@@ -6,6 +6,7 @@
   <title>ExpedienteCheck · Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     :root {
       --bg:        #f0ede6;
@@ -321,11 +322,13 @@
     .hbar-fill { height: 100%; border-radius: 5px; min-width: 2px; transition: width 0.3s; }
     .hbar-val { font-size: 12px; font-weight: 700; color: var(--text); }
 
-    /* ── REPORTE PDF (impresión nativa) ── */
+    /* ── REPORTE PDF (descarga con html2pdf) ── */
     #reporte-print { display: none; }
     .rep-muni + .rep-muni { page-break-before: always; }
     .rep-head { border-bottom: 3px solid var(--accent); padding-bottom: 10px; margin-bottom: 16px; }
-    .rep-brand { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .6px; text-transform: uppercase; }
+    .rep-logo { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .rep-logo-mark { width: 26px; height: 26px; border-radius: 6px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; }
+    .rep-logo-txt { font-size: 15px; font-weight: 800; color: #111; }
     .rep-title { font-size: 21px; font-weight: 700; margin-top: 4px; color: #111; }
     .rep-meta { font-size: 12px; color: #555; margin-top: 4px; }
     .rep-section-t { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 8px; color: #333; }
@@ -337,13 +340,6 @@
     table.rep-tbl td { padding: 6px 8px; border: 1px solid #eee; color: #222; }
     tr.rep-row { page-break-inside: avoid; }
     .rep-foot { margin-top: 22px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #888; }
-
-    @media print {
-      header, .tabs-bar, main, .overlay { display: none !important; }
-      #reporte-print { display: block !important; }
-      @page { margin: 15mm; }
-      body { background: #fff; }
-    }
   </style>
 </head>
 <body>
@@ -431,7 +427,7 @@
           <h1 class="page-title">Medición de <span style="font-weight:300;">Impacto</span></h1>
           <p class="page-subtitle">Seguimiento interno · ¿los municipios resuelven más alertas y más rápido?</p>
         </div>
-        <button class="btn-nuevo" id="btn-imprimir-reporte" title="Filtra una municipalidad arriba y luego imprime; o imprime las tres a la vez">🖨 Imprimir / PDF</button>
+        <button class="btn-nuevo" id="btn-imprimir-reporte" title="Filtra una municipalidad arriba y descarga su PDF; o descarga las tres a la vez">⬇ Descargar PDF</button>
       </div>
       <div id="impacto-desde" class="impacto-desde" style="display:none;"></div>
 
@@ -1228,7 +1224,7 @@
       renderCronicas();
       renderRendimiento(periodoActivo);
       const btnImp = document.getElementById('btn-imprimir-reporte');
-      if (btnImp) btnImp.textContent = muniActivo ? ('🖨 Imprimir ' + cortoMuni(muniActivo)) : '🖨 Imprimir las 3';
+      if (btnImp) btnImp.textContent = muniActivo ? ('⬇ Descargar ' + cortoMuni(muniActivo)) : '⬇ Descargar las 3 (PDF)';
     }
 
     document.querySelectorAll('.periodo-btn').forEach(btn => {
@@ -1240,7 +1236,18 @@
       });
     });
 
-    // ── Reporte imprimible (PDF vía impresión nativa) ──
+    // ── Reporte descargable en PDF (html2pdf · sin diálogo de impresión) ──
+    function repBarras(items) {
+      if (!items.length) return '<div style="color:#888;font-size:11px;padding:6px 0;">Sin datos</div>';
+      const max = Math.max(1, ...items.map(i => i.value));
+      return '<div style="display:flex;flex-direction:column;gap:7px;margin:2px 0 10px;">' + items.map(i =>
+        `<div style="display:grid;grid-template-columns:155px 1fr 26px;align-items:center;gap:8px;">
+           <div style="font-size:11px;color:#333;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(i.label)}</div>
+           <div style="background:#eee;border-radius:4px;height:14px;"><div style="height:100%;border-radius:4px;width:${Math.max(2, Math.round(i.value / max * 100))}%;background:${i.color};"></div></div>
+           <div style="font-size:11px;font-weight:700;color:#222;">${i.value}</div>
+         </div>`).join('') + '</div>';
+    }
+
     function reporteMuni(nombre) {
       const efi = impactoData.eficiencia.find(m => m.entidad_nombre === nombre);
       const cro = impactoData.cronicas.filter(c => c.entidad_nombre === nombre);
@@ -1261,6 +1268,19 @@
           <div><div class="rep-kpi-v">${efi.dias_promedio_resolucion ?? '—'}</div><div class="rep-kpi-l">Días prom. resolución</div></div>`;
       }
 
+      // Gráfico 1: comparación del índice entre municipalidades (resalta esta)
+      const cmp = impactoData.eficiencia.map(m => ({
+        label: cortoMuni(m.entidad_nombre),
+        value: calcEficiencia(m).indice,
+        color: m.entidad_nombre === nombre ? 'var(--accent)' : '#cfcabf',
+      }));
+      // Gráfico 2: crónicas de esta municipalidad por tipo de alerta
+      const porTipo = {};
+      cro.forEach(c => { const t = c.tipo_alerta || '—'; if (!porTipo[t]) porTipo[t] = { value: 0, nivel: c.nivel }; porTipo[t].value++; });
+      const tipos = Object.entries(porTipo)
+        .map(([label, o]) => ({ label, value: o.value, color: NIVEL_COLOR[o.nivel] || '#999' }))
+        .sort((a, b) => b.value - a.value);
+
       const croRows = cro.length ? cro.map(a => {
         const d = a.fecha_inicio ? new Date(a.fecha_inicio + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
         return `<tr class="rep-row"><td>${a.dias_sin_resolver} d</td><td>${esc(a.nombre_proyecto || a.codigo_unico)}</td><td>${esc(a.tipo_alerta || '')}</td><td>${esc(a.nivel || '')}</td><td>${d}</td></tr>`;
@@ -1274,12 +1294,19 @@
       return `
         <div class="rep-muni">
           <div class="rep-head">
-            <div class="rep-brand">ExpedienteCheck · Reporte de Impacto</div>
+            <div class="rep-logo">
+              <span class="rep-logo-mark">E</span>
+              <span class="rep-logo-txt">Expediente<span style="color:var(--accent);">Check</span></span>
+            </div>
             <div class="rep-title">${esc(nombre)}</div>
-            <div class="rep-meta">Generado el ${hoy} · Seguimiento desde ${desde}</div>
+            <div class="rep-meta">Reporte de Impacto · Generado el ${hoy} · Seguimiento desde ${desde}</div>
           </div>
           <div class="rep-section-t">Resumen de eficiencia</div>
           <div class="rep-kpis">${kpis}</div>
+          <div class="rep-section-t">Índice de eficiencia — comparación entre municipalidades</div>
+          ${repBarras(cmp)}
+          <div class="rep-section-t">Alertas crónicas por tipo de alerta</div>
+          ${repBarras(tipos)}
           <div class="rep-section-t">Alertas crónicas (+30 días sin resolver) · ${cro.length}</div>
           <table class="rep-tbl"><thead><tr><th>Días</th><th>Proyecto</th><th>Tipo de alerta</th><th>Nivel</th><th>Desde</th></tr></thead><tbody>${croRows}</tbody></table>
           <div class="rep-section-t">Rendimiento semanal (días con avance financiero)</div>
@@ -1288,13 +1315,34 @@
         </div>`;
     }
 
-    function imprimirReporte() {
+    async function descargarReporte() {
+      if (typeof html2pdf === 'undefined') { alert('No se pudo cargar el generador de PDF. Revisa tu conexión e inténtalo de nuevo.'); return; }
       const munis = muniActivo ? [muniActivo] : impactoData.eficiencia.map(m => m.entidad_nombre);
-      if (!munis.length) { alert('No hay datos para imprimir todavía.'); return; }
-      document.getElementById('reporte-print').innerHTML = munis.map(reporteMuni).join('');
-      window.print();
+      if (!munis.length) { alert('No hay datos para descargar todavía.'); return; }
+      const cont = document.getElementById('reporte-print');
+      cont.innerHTML = munis.map(reporteMuni).join('');
+      // Visible fuera de pantalla para que html2canvas pueda capturarlo
+      cont.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;width:800px;background:#fff;padding:24px;';
+      const nombreArch = muniActivo ? cortoMuni(muniActivo).replace(/\s+/g, '-') : '3-municipios';
+      const btn = document.getElementById('btn-imprimir-reporte');
+      const txt = btn.textContent; btn.textContent = '⏳ Generando PDF…'; btn.disabled = true;
+      try {
+        await html2pdf().set({
+          margin: [10, 10, 12, 10],
+          filename: `Reporte-Impacto-${nombreArch}-${new Date().toISOString().slice(0, 10)}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, backgroundColor: '#ffffff', windowWidth: 800 },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['css', 'legacy'] },
+        }).from(cont).save();
+      } catch (e) {
+        alert('No se pudo generar el PDF: ' + (e.message || e));
+      } finally {
+        cont.style.cssText = 'display:none;';
+        btn.textContent = txt; btn.disabled = false;
+      }
     }
-    document.getElementById('btn-imprimir-reporte').addEventListener('click', imprimirReporte);
+    document.getElementById('btn-imprimir-reporte').addEventListener('click', descargarReporte);
 
     async function cargarImpacto() {
       if (impactoCargado) return;      // se carga una sola vez por sesión
