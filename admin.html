@@ -265,6 +265,28 @@
     .error-msg.show { display: block; }
     .loading { text-align: center; padding: 40px; color: var(--muted); }
     .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+
+    /* ── IMPACTO ── */
+    .impacto-desde {
+      background: var(--accent-lt); border: 1px solid #b7e5cb; border-radius: 8px;
+      padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: var(--text);
+    }
+    .impacto-desde strong { color: var(--accent); }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 26px; }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .kpi-card.alerta { border-left: 3px solid var(--rojo); }
+    .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 8px; }
+    .kpi-value { font-size: 30px; font-weight: 700; letter-spacing: -1px; line-height: 1; }
+    .kpi-value.rojo { color: var(--rojo); }
+    .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .kpi-bar { height: 6px; background: var(--border); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+    .kpi-bar span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+    .section-title { font-size: 15px; font-weight: 700; margin: 26px 0 12px; }
+    .dias-badge { font-family: var(--mono); font-weight: 600; padding: 3px 8px; border-radius: 4px; font-size: 12px; background: var(--rojo-lt); color: var(--rojo); }
+    .nivel-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
   </style>
 </head>
 <body>
@@ -281,6 +303,7 @@
   <div class="tabs-bar">
     <button class="tab-btn active" data-tab="usuarios">Usuarios</button>
     <button class="tab-btn" data-tab="obras">Obras / CUIs</button>
+    <button class="tab-btn only-superadmin" data-tab="impacto" style="display:none;">Impacto</button>
   </div>
 
   <main>
@@ -339,6 +362,41 @@
           </thead>
           <tbody id="tbody-obras">
             <tr><td colspan="6" class="loading">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── TAB: IMPACTO ── -->
+    <div class="tab-panel" id="panel-impacto">
+      <div class="panel-header">
+        <div>
+          <h1 class="page-title">Medición de <span style="font-weight:300;">Impacto</span></h1>
+          <p class="page-subtitle">Seguimiento interno · ¿los municipios resuelven más alertas y más rápido?</p>
+        </div>
+      </div>
+      <div id="impacto-desde" class="impacto-desde" style="display:none;"></div>
+
+      <h2 class="section-title">Índice de Eficiencia Municipal <span style="font-weight:400;color:var(--muted);font-size:12px;">· 0–100 · resolución + rapidez</span></h2>
+      <div class="kpi-grid" id="impacto-eficiencia">
+        <div class="loading" style="grid-column:1/-1;">Cargando…</div>
+      </div>
+
+      <h2 class="section-title">Alertas crónicas <span style="font-weight:400;color:var(--muted);font-size:12px;">· activas hace más de 30 días</span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Días</th>
+              <th>Municipio</th>
+              <th>Proyecto</th>
+              <th>Tipo de alerta</th>
+              <th>Nivel</th>
+              <th>Desde</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-cronicas">
+            <tr><td colspan="6" class="loading">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -487,7 +545,8 @@
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
-        if (btn.dataset.tab === 'obras') cargarObras();
+        if (btn.dataset.tab === 'obras')   cargarObras();
+        if (btn.dataset.tab === 'impacto') cargarImpacto();
       });
     });
 
@@ -888,9 +947,98 @@
 
     function showErrorObra(msg) { errorObra.textContent = msg; errorObra.classList.add('show'); }
 
+    // ── IMPACTO ───────────────────────────────────────────────
+    let impactoCargado = false;
+    const NIVEL_COLOR = { rojo: '#ef4444', amarillo: '#f59e0b', verde: '#22c55e' };
+
+    async function cargarImpacto() {
+      if (impactoCargado) return;      // se carga una sola vez por sesión
+      impactoCargado = true;
+      const gridEfi = document.getElementById('impacto-eficiencia');
+      const tbodyCro = document.getElementById('tbody-cronicas');
+      try {
+        const res  = await authedFetch(`${API}/api/admin/impacto`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        // Encabezado: desde cuándo hay seguimiento
+        if (data.seguimiento_desde) {
+          const d = new Date(data.seguimiento_desde + 'T00:00:00');
+          const fecha = d.toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
+          const dias  = Math.floor((Date.now() - d.getTime()) / 86400000);
+          const el = document.getElementById('impacto-desde');
+          el.innerHTML = `📅 El seguimiento de alertas comenzó el <strong>${fecha}</strong> · ${dias} días midiendo`;
+          el.style.display = 'block';
+        }
+
+        // Tarjetas de eficiencia por municipio
+        const efi = data.eficiencia || [];
+        if (!efi.length) {
+          gridEfi.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">Sin datos de eficiencia todavía</div>';
+        } else {
+          gridEfi.innerHTML = '';
+          efi.forEach(m => {
+            const idx = Number(m.indice_eficiencia ?? 0);
+            const nombreCorto = esc(m.entidad_nombre).replace(/^Municipalidad (Provincial|Distrital) de /i, '');
+            const card = document.createElement('div');
+            card.className = 'kpi-card' + (m.rojas_activas > 0 ? ' alerta' : '');
+            card.innerHTML = `
+              <div class="kpi-label">${nombreCorto}</div>
+              <div class="kpi-value">${idx.toFixed(0)}<span style="font-size:15px;color:var(--muted);font-weight:600;"> / 100</span></div>
+              <div class="kpi-bar"><span style="width:${Math.min(100, idx)}%;"></span></div>
+              <div class="kpi-sub">
+                ${m.resueltas} resueltas · ${m.activas_ahora} activas
+                ${m.rojas_activas > 0 ? ` · <span style="color:var(--rojo);font-weight:600;">${m.rojas_activas} rojas</span>` : ''}<br>
+                ${m.dias_promedio_resolucion != null ? `Resuelve en ${m.dias_promedio_resolucion} días en promedio` : 'Sin resoluciones aún'}
+              </div>`;
+            gridEfi.appendChild(card);
+          });
+        }
+
+        // Tabla de alertas crónicas
+        const cro = data.cronicas || [];
+        if (!cro.length) {
+          tbodyCro.innerHTML = '<tr><td colspan="6"><div class="empty-state">🎉 Ningún municipio tiene alertas de más de 30 días sin resolver</div></td></tr>';
+        } else {
+          tbodyCro.innerHTML = '';
+          cro.forEach(a => {
+            const nombreCorto = esc(a.entidad_nombre).replace(/^Municipalidad (Provincial|Distrital) de /i, '');
+            const desde = a.fecha_inicio
+              ? new Date(a.fecha_inicio + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+              : '—';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><span class="dias-badge">${a.dias_sin_resolver} d</span></td>
+              <td>${nombreCorto}</td>
+              <td><div class="obra-nombre">${esc(a.nombre_proyecto || a.codigo_unico)}</div></td>
+              <td>${esc(a.tipo_alerta || '')}</td>
+              <td><span class="nivel-dot" style="background:${NIVEL_COLOR[a.nivel] || '#999'};"></span>${esc(a.nivel || '')}</td>
+              <td style="color:var(--muted);font-size:12px;">${desde}</td>`;
+            tbodyCro.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        gridEfi.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Error: ${esc(err.message)}</div>`;
+        tbodyCro.innerHTML = `<tr><td colspan="6"><div class="empty-state">Error: ${esc(err.message)}</div></td></tr>`;
+      }
+    }
+
+    // Abrir la pestaña Impacto automáticamente una vez al mes (solo super-admin)
+    function chequeoMensualImpacto() {
+      if (!esSuperAdmin) return;
+      const mesActual = new Date().toISOString().slice(0, 7); // YYYY-MM
+      const ultimoVisto = localStorage.getItem('impacto_ultimo_mes');
+      if (ultimoVisto !== mesActual) {
+        localStorage.setItem('impacto_ultimo_mes', mesActual);
+        const btn = document.querySelector('[data-tab="impacto"]');
+        if (btn) btn.click();
+      }
+    }
+
     // ── INIT ──────────────────────────────────────────────────
     cargarUsuarios();
     renderCuisContainer();
+    chequeoMensualImpacto();
   </script>
 </body>
 </html>
