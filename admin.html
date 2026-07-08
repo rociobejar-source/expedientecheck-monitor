@@ -320,6 +320,30 @@
     .hbar-track { background: var(--border); border-radius: 5px; height: 16px; overflow: hidden; }
     .hbar-fill { height: 100%; border-radius: 5px; min-width: 2px; transition: width 0.3s; }
     .hbar-val { font-size: 12px; font-weight: 700; color: var(--text); }
+
+    /* ── REPORTE PDF (impresión nativa) ── */
+    #reporte-print { display: none; }
+    .rep-muni + .rep-muni { page-break-before: always; }
+    .rep-head { border-bottom: 3px solid var(--accent); padding-bottom: 10px; margin-bottom: 16px; }
+    .rep-brand { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .6px; text-transform: uppercase; }
+    .rep-title { font-size: 21px; font-weight: 700; margin-top: 4px; color: #111; }
+    .rep-meta { font-size: 12px; color: #555; margin-top: 4px; }
+    .rep-section-t { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 8px; color: #333; }
+    .rep-kpis { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 4px; }
+    .rep-kpi-v { font-size: 24px; font-weight: 700; color: #111; }
+    .rep-kpi-l { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: .4px; }
+    table.rep-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+    table.rep-tbl th { background: #f0f0f0; text-align: left; padding: 6px 8px; border: 1px solid #ddd; font-size: 10px; text-transform: uppercase; color: #333; }
+    table.rep-tbl td { padding: 6px 8px; border: 1px solid #eee; color: #222; }
+    tr.rep-row { page-break-inside: avoid; }
+    .rep-foot { margin-top: 22px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #888; }
+
+    @media print {
+      header, .tabs-bar, main, .overlay { display: none !important; }
+      #reporte-print { display: block !important; }
+      @page { margin: 15mm; }
+      body { background: #fff; }
+    }
   </style>
 </head>
 <body>
@@ -407,12 +431,13 @@
           <h1 class="page-title">Medición de <span style="font-weight:300;">Impacto</span></h1>
           <p class="page-subtitle">Seguimiento interno · ¿los municipios resuelven más alertas y más rápido?</p>
         </div>
+        <button class="btn-nuevo" id="btn-imprimir-reporte" title="Filtra una municipalidad arriba y luego imprime; o imprime las tres a la vez">🖨 Imprimir / PDF</button>
       </div>
       <div id="impacto-desde" class="impacto-desde" style="display:none;"></div>
 
       <div class="muni-filter" id="muni-filter"></div>
 
-      <h2 class="section-title">Índice de Eficiencia Municipal <span style="font-weight:400;color:var(--muted);font-size:12px;">· 0–100 · resolución + rapidez</span></h2>
+      <h2 class="section-title">Índice de Eficiencia Municipal <span style="font-weight:400;color:var(--muted);font-size:12px;">· 0–100 · 70% resolución + 30% rapidez (meta 7 días)</span></h2>
       <div class="kpi-grid" id="impacto-eficiencia">
         <div class="loading" style="grid-column:1/-1;">Cargando…</div>
       </div>
@@ -567,6 +592,9 @@
       </form>
     </div>
   </div>
+
+  <!-- Contenedor del reporte imprimible (oculto en pantalla, visible al imprimir) -->
+  <div id="reporte-print"></div>
 
   <script>
     const API = 'https://api.expedientecheck.com';
@@ -1028,6 +1056,24 @@
     const NIVEL_COLOR  = { rojo: '#ef4444', amarillo: '#f59e0b', verde: '#22c55e' };
     const cortoMuni = n => esc(n).replace(/^Municipalidad (Provincial|Distrital) de /i, '');
 
+    // ── Índice de Eficiencia (fórmula acordada en reunión, 2026-07-08) ──
+    // 70% tasa de resolución (resueltas / total) + 30% rapidez (meta 7 días).
+    // Se calcula aquí desde los componentes de v_eficiencia_municipio; NO se usa
+    // su columna indice_eficiencia, que tenía un bug: dividía resueltas entre las
+    // NO-activas (= resueltas) → siempre 100. Ajusta los pesos/meta si cambia el criterio.
+    const EFI_PESO_RESOLUCION = 0.70;
+    const EFI_PESO_RAPIDEZ    = 0.30;
+    const EFI_META_DIAS       = 7;
+    function calcEficiencia(m) {
+      const total = Number(m.alertas_generadas) || 0;
+      if (!total) return { indice: 0, tasa: 0 };
+      const tasa    = (Number(m.resueltas) || 0) / total;
+      const dias    = Number(m.dias_promedio_resolucion) || 0;
+      const rapidez = dias > 0 ? Math.min(1, EFI_META_DIAS / dias) : 0;
+      const indice  = Math.round((EFI_PESO_RESOLUCION * tasa + EFI_PESO_RAPIDEZ * rapidez) * 100);
+      return { indice, tasa: Math.round(tasa * 100) };
+    }
+
     // ── Filtro por municipalidad ──
     function setMuni(nombre) {
       muniActivo = (nombre === muniActivo) ? '' : nombre;   // clic de nuevo = quitar filtro
@@ -1105,15 +1151,15 @@
       }
       gridEfi.innerHTML = '';
       efi.forEach(m => {
-        const idx = Number(m.indice_eficiencia ?? 0);
+        const { indice: idx, tasa } = calcEficiencia(m);
         const card = document.createElement('div');
         card.className = 'kpi-card' + (m.rojas_activas > 0 ? ' alerta' : '');
         card.innerHTML = `
           <div class="kpi-label">${cortoMuni(m.entidad_nombre)}</div>
-          <div class="kpi-value">${idx.toFixed(0)}<span style="font-size:15px;color:var(--muted);font-weight:600;"> / 100</span></div>
+          <div class="kpi-value">${idx}<span style="font-size:15px;color:var(--muted);font-weight:600;"> / 100</span></div>
           <div class="kpi-bar"><span style="width:${Math.min(100, idx)}%;"></span></div>
           <div class="kpi-sub">
-            ${m.resueltas} resueltas · ${m.activas_ahora} activas
+            <b style="color:var(--text);">${tasa}% resueltas</b> (${m.resueltas}/${m.alertas_generadas}) · ${m.activas_ahora} activas
             ${m.rojas_activas > 0 ? ` · <span style="color:var(--rojo);font-weight:600;">${m.rojas_activas} rojas</span>` : ''}<br>
             ${m.dias_promedio_resolucion != null ? `Resuelve en ${m.dias_promedio_resolucion} días en promedio` : 'Sin resoluciones aún'}
           </div>`;
@@ -1181,6 +1227,8 @@
       renderCharts();
       renderCronicas();
       renderRendimiento(periodoActivo);
+      const btnImp = document.getElementById('btn-imprimir-reporte');
+      if (btnImp) btnImp.textContent = muniActivo ? ('🖨 Imprimir ' + cortoMuni(muniActivo)) : '🖨 Imprimir las 3';
     }
 
     document.querySelectorAll('.periodo-btn').forEach(btn => {
@@ -1192,6 +1240,62 @@
       });
     });
 
+    // ── Reporte imprimible (PDF vía impresión nativa) ──
+    function reporteMuni(nombre) {
+      const efi = impactoData.eficiencia.find(m => m.entidad_nombre === nombre);
+      const cro = impactoData.cronicas.filter(c => c.entidad_nombre === nombre);
+      const ren = (rendData.semanal || []).filter(r => r.entidad_nombre === nombre);
+      const hoy = new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
+      const desde = impactoData.seguimiento_desde
+        ? new Date(impactoData.seguimiento_desde + 'T00:00:00').toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })
+        : '—';
+
+      let kpis = '<div><div class="rep-kpi-v">—</div><div class="rep-kpi-l">Sin datos</div></div>';
+      if (efi) {
+        const { indice, tasa } = calcEficiencia(efi);
+        kpis = `
+          <div><div class="rep-kpi-v">${indice}/100</div><div class="rep-kpi-l">Índice de eficiencia</div></div>
+          <div><div class="rep-kpi-v">${tasa}%</div><div class="rep-kpi-l">Resueltas (${efi.resueltas}/${efi.alertas_generadas})</div></div>
+          <div><div class="rep-kpi-v">${efi.activas_ahora}</div><div class="rep-kpi-l">Activas ahora</div></div>
+          <div><div class="rep-kpi-v">${efi.rojas_activas}</div><div class="rep-kpi-l">Rojas activas</div></div>
+          <div><div class="rep-kpi-v">${efi.dias_promedio_resolucion ?? '—'}</div><div class="rep-kpi-l">Días prom. resolución</div></div>`;
+      }
+
+      const croRows = cro.length ? cro.map(a => {
+        const d = a.fecha_inicio ? new Date(a.fecha_inicio + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        return `<tr class="rep-row"><td>${a.dias_sin_resolver} d</td><td>${esc(a.nombre_proyecto || a.codigo_unico)}</td><td>${esc(a.tipo_alerta || '')}</td><td>${esc(a.nivel || '')}</td><td>${d}</td></tr>`;
+      }).join('') : '<tr><td colspan="5">Sin alertas crónicas de más de 30 días 🎉</td></tr>';
+
+      const renRows = ren.length ? ren.map(r => {
+        const sem = new Date(r.semana + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+        return `<tr class="rep-row"><td>Sem. ${sem}</td><td>${r.dias_con_avance}</td><td>${r.dias_sin_avance}</td><td>S/ ${fmtMonto(r.soles_devengados_en_semana)}</td><td style="text-transform:capitalize;">${r.dia_semana_mas_estancado || '—'}</td></tr>`;
+      }).join('') : '<tr><td colspan="5">Acumulando datos · disponible desde el segundo día de mediciones</td></tr>';
+
+      return `
+        <div class="rep-muni">
+          <div class="rep-head">
+            <div class="rep-brand">ExpedienteCheck · Reporte de Impacto</div>
+            <div class="rep-title">${esc(nombre)}</div>
+            <div class="rep-meta">Generado el ${hoy} · Seguimiento desde ${desde}</div>
+          </div>
+          <div class="rep-section-t">Resumen de eficiencia</div>
+          <div class="rep-kpis">${kpis}</div>
+          <div class="rep-section-t">Alertas crónicas (+30 días sin resolver) · ${cro.length}</div>
+          <table class="rep-tbl"><thead><tr><th>Días</th><th>Proyecto</th><th>Tipo de alerta</th><th>Nivel</th><th>Desde</th></tr></thead><tbody>${croRows}</tbody></table>
+          <div class="rep-section-t">Rendimiento semanal (días con avance financiero)</div>
+          <table class="rep-tbl"><thead><tr><th>Semana</th><th>Con avance</th><th>Sin avance</th><th>Devengado</th><th>Día más estancado</th></tr></thead><tbody>${renRows}</tbody></table>
+          <div class="rep-foot">Reporte generado desde el panel de administración de ExpedienteCheck por ${esc(userMeta.email || '')} · ${new Date().toLocaleString('es-PE')}</div>
+        </div>`;
+    }
+
+    function imprimirReporte() {
+      const munis = muniActivo ? [muniActivo] : impactoData.eficiencia.map(m => m.entidad_nombre);
+      if (!munis.length) { alert('No hay datos para imprimir todavía.'); return; }
+      document.getElementById('reporte-print').innerHTML = munis.map(reporteMuni).join('');
+      window.print();
+    }
+    document.getElementById('btn-imprimir-reporte').addEventListener('click', imprimirReporte);
+
     async function cargarImpacto() {
       if (impactoCargado) return;      // se carga una sola vez por sesión
       impactoCargado = true;
@@ -1200,8 +1304,9 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
 
-        impactoData.eficiencia = data.eficiencia || [];
-        impactoData.cronicas   = data.cronicas   || [];
+        impactoData.eficiencia        = data.eficiencia || [];
+        impactoData.cronicas          = data.cronicas   || [];
+        impactoData.seguimiento_desde = data.seguimiento_desde || null;
         rendData.semanal       = data.rendimiento_semanal || [];
         rendData.mensual       = data.rendimiento_mensual || [];
 
