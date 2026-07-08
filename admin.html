@@ -1321,17 +1321,28 @@
       if (!munis.length) { alert('No hay datos para descargar todavía.'); return; }
       const cont = document.getElementById('reporte-print');
       cont.innerHTML = munis.map(reporteMuni).join('');
-      // Visible fuera de pantalla para que html2canvas pueda capturarlo
-      cont.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;width:800px;background:#fff;padding:24px;';
+      // El contenedor debe quedar EN EL FLUJO normal del documento: html2pdf
+      // 0.10.1 colapsa a altura 0 (PDF en blanco) los elementos con
+      // position:absolute/fixed. Verificado con Chrome headless: off-screen y
+      // absolute → canvas altura 0; en flujo → canvas completo.
+      // Un overlay tapa la pantalla mientras se genera.
+      cont.style.cssText = 'display:block;width:800px;background:#fff;padding:24px;';
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,15,15,.78);z-index:9999;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-family:var(--sans);';
+      ov.textContent = '⏳ Generando PDF…';
+      document.body.appendChild(ov);
+      window.scrollTo(0, 0);
       const nombreArch = muniActivo ? cortoMuni(muniActivo).replace(/\s+/g, '-') : '3-municipios';
-      const btn = document.getElementById('btn-imprimir-reporte');
-      const txt = btn.textContent; btn.textContent = '⏳ Generando PDF…'; btn.disabled = true;
       try {
         await html2pdf().set({
           margin: [10, 10, 12, 10],
           filename: `Reporte-Impacto-${nombreArch}-${new Date().toISOString().slice(0, 10)}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, backgroundColor: '#ffffff', windowWidth: 800 },
+          // OJO: no usar windowWidth — emula una ventana más angosta que el
+          // contenedor (800 + padding) y desencuadra la captura (verificado
+          // con Chrome headless: con windowWidth el contenido sale recortado
+          // por la izquierda; sin él, el encuadre es exacto).
+          html2canvas: { scale: 2, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak: { mode: ['css', 'legacy'] },
         }).from(cont).save();
@@ -1339,7 +1350,7 @@
         alert('No se pudo generar el PDF: ' + (e.message || e));
       } finally {
         cont.style.cssText = 'display:none;';
-        btn.textContent = txt; btn.disabled = false;
+        ov.remove();
       }
     }
     document.getElementById('btn-imprimir-reporte').addEventListener('click', descargarReporte);
