@@ -2270,37 +2270,64 @@ function construirAlertasObra(o) {
   return alertas;
 }
 
-// Ranking departamental + nacional (entre municipalidades provinciales).
-// No incluye ranking "provincial" — el monitor no tiene la provincia
-// exacta de la entidad guardada, solo la región/departamento.
-async function obtenerRankingEntidad(ejecutora, departamento) {
-  if (!ejecutora || !departamento) return null;
+// Ranking de ejecución presupuestal (devengado/PIM) de la entidad frente a
+// las demás municipalidades de su PROVINCIA y de su DEPARTAMENTO.
+//
+// Una sola consulta al departamento con GROUP BY server-side. Notas MEF:
+//  - El endpoint CKAN (datastore_search_sql) sí agrega, pero MONTO_* son
+//    columnas de texto → hay que castear con ::numeric o SUM() falla.
+//  - El código "EJECUTORA" es el ubigeo de la municipalidad, así que la
+//    provincia se deriva por prefijo (dept+prov = primeros 4 dígitos) y la
+//    propia entidad se identifica por EJECUTORA === ubigeo. Esto evita el
+//    problema de los homónimos (hay 4 "Miraflores" en el país).
+async function obtenerRankingEntidad(entidad) {
+  const ubigeo = String(entidad?.ubigeo || '').trim();
+  if (!/^\d{6}$/.test(ubigeo)) return null;
+  const dd = ubigeo.slice(0, 2);       // departamento
+  const prefProv = ubigeo.slice(0, 4); // departamento + provincia
   try {
     const ano = new Date().getFullYear().toString();
-    const sqlDept = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID_MEF}" WHERE "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}' AND "ANO_EJE"='${ano}' GROUP BY "EJECUTORA_NOMBRE"`;
-    const sqlNac  = `SELECT "EJECUTORA_NOMBRE",SUM("MONTO_PIM") AS PIM_TOTAL,SUM("MONTO_DEVENGADO") AS DEV_TOTAL FROM "${RESOURCE_ID_MEF}" WHERE "NIVEL_GOBIERNO_NOMBRE"='GOBIERNOS LOCALES' AND "ANO_EJE"='${ano}' AND "EJECUTORA_NOMBRE" ILIKE '%PROVINCIAL%' GROUP BY "EJECUTORA_NOMBRE"`;
+    // Alias entrecomillados: Postgres pasa a minúsculas los identificadores
+    // sin comillas, así que sin ellas el JSON vuelve con `pim`/`dev`/`dep_nom`.
+    const sql = `SELECT "EJECUTORA","DEPARTAMENTO_EJECUTORA_NOMBRE" AS "DEP_NOM","PROVINCIA_EJECUTORA_NOMBRE" AS "PROV_NOM",SUM("MONTO_PIM"::numeric) AS "PIM",SUM("MONTO_DEVENGADO"::numeric) AS "DEV" FROM "${RESOURCE_ID_MEF}" WHERE "DEPARTAMENTO_EJECUTORA"='${dd}' AND "NIVEL_GOBIERNO"='M' AND "ANO_EJE"='${ano}' GROUP BY "EJECUTORA","DEPARTAMENTO_EJECUTORA_NOMBRE","PROVINCIA_EJECUTORA_NOMBRE"`;
     const withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))]);
-    const [rDept, rNac] = await Promise.all([
-      withTimeout(fetch(`${API}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlDept)}`).then(r => r.json()), 9000).catch(() => ({ records: [] })),
-      withTimeout(fetch(`${API}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sqlNac)}`).then(r => r.json()),  9000).catch(() => ({ records: [] })),
-    ]);
-    const toList = records => (records || [])
-      .map(r => ({ nombre: String(r.EJECUTORA_NOMBRE || '').trim(), pim: Number(r.PIM_TOTAL) || 0, dev: Number(r.DEV_TOTAL) || 0 }))
-      .filter(r => r.nombre && r.pim > 0)
-      .map(r => ({ ...r, pct: r.dev / r.pim * 100 }))
-      .sort((a, b) => b.pct - a.pct);
-    const listDept = toList(rDept.records);
-    const listNac  = toList(rNac.records);
-    const propiaIdx = listDept.findIndex(r => r.nombre === ejecutora);
-    const posDept  = propiaIdx >= 0 ? propiaIdx + 1 : null;
-    const promDept = listDept.length ? listDept.reduce((s, r) => s + r.pct, 0) / listDept.length : 0;
-    const nacIdx  = listNac.findIndex(r => r.nombre === ejecutora);
-    const posNac  = nacIdx >= 0 ? nacIdx + 1 : null;
-    const promNac = listNac.length ? listNac.reduce((s, r) => s + r.pct, 0) / listNac.length : 0;
-    return {
-      dept: { pos: posDept, total: listDept.length, prom: promDept.toFixed(1) },
-      nac:  { pos: posNac,  total: listNac.length,  prom: promNac.toFixed(1) },
+    // El MEF escanea todo el dataset nacional para agregar → observado 18-41s.
+    // Timeout amplio (60s) para no abortar antes de que responda.
+    const resp = await withTimeout(
+      fetch(`${API}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`).then(r => r.json()),
+      60000
+    );
+    const todas = (resp.records || [])
+      .map(r => ({
+        cod: String(r.EJECUTORA || '').trim(),
+        depNom: String(r.DEP_NOM || '').trim(),
+        provNom: String(r.PROV_NOM || '').trim(),
+        pim: Number(r.PIM) || 0,
+        dev: Number(r.DEV) || 0,
+      }))
+      .filter(r => r.cod && r.pim > 0)
+      .map(r => ({ ...r, pct: r.dev / r.pim * 100 }));
+    if (!todas.length) return null;
+
+    // Rankea una lista por % de ejecución y ubica la propia (por ubigeo).
+    const rankear = (lista) => {
+      const ord = [...lista].sort((a, b) => b.pct - a.pct);
+      const idx = ord.findIndex(r => r.cod === ubigeo);
+      if (idx < 0) return null;
+      const prom = ord.reduce((s, r) => s + r.pct, 0) / ord.length;
+      return {
+        pos: idx + 1,
+        total: ord.length,
+        pctPropia: ord[idx].pct,
+        pctProm: prom,
+        pctLider: ord[0].pct,
+        nombre: idx >= 0 ? (lista === todas ? ord[idx].depNom : ord[idx].provNom) : '',
+      };
     };
+    const dept = rankear(todas);
+    const prov = rankear(todas.filter(r => r.cod.startsWith(prefProv)));
+    if (!dept && !prov) return null;
+    return { prov, dept };
   } catch (e) {
     console.error('Error calculando ranking:', e.message);
     return null;
@@ -2600,6 +2627,56 @@ function dibujarResumenEjecutivo(st, d) {
     y = ty + 2;
   }
 
+  // ── Ranking comparativo de ejecución (provincia + departamento) ──
+  if (d.ranking && (d.ranking.prov || d.ranking.dept)) {
+    const rkH = 6 + 28 + 5;
+    st.y = y; pdfEnsureSpace(st, rkH + 4); y = st.y;
+    pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
+    st.doc.text('RANKING DE EJECUCIÓN PRESUPUESTAL · FRENTE A OTRAS MUNICIPALIDADES', x, y + 3);
+    const rGap = 4, rW = (w - rGap) / 2, rH = 28, rY = y + 6;
+    const cards = [
+      { r: d.ranking.prov, pre: 'PROVINCIA' },
+      { r: d.ranking.dept, pre: 'DEPARTAMENTO' },
+    ];
+    cards.forEach((c, i) => {
+      const cx = x + i * (rW + rGap);
+      pdfCard(st, cx, rY, rW, rH, PDF_COLORS.white, PDF_COLORS.border);
+      const titulo = `${c.pre}${c.r && c.r.nombre ? ' DE ' + c.r.nombre.toUpperCase() : ''}`;
+      pdfSetFont(st, 'bold', 6, PDF_COLORS.gold);
+      st.doc.text(titulo, cx + 3, rY + 5);
+      if (!c.r) {
+        pdfSetFont(st, 'normal', 7, PDF_COLORS.muted);
+        st.doc.text('Sin ejecución registrada este año', cx + 3, rY + 15);
+        return;
+      }
+      pdfSetFont(st, 'bold', 5.4, PDF_COLORS.mutedLight);
+      st.doc.text('PUESTO', cx + 3, rY + 9.5);
+      pdfSetFont(st, 'bold', 15, PDF_COLORS.navy);
+      st.doc.text(`${c.r.pos}`, cx + 3, rY + 16.5);
+      const posW = st.doc.getTextWidth(`${c.r.pos}`);
+      pdfSetFont(st, 'normal', 8, PDF_COLORS.muted);
+      st.doc.text(`de ${c.r.total}`, cx + 3 + posW + 2, rY + 16.5);
+      pdfProgressBar(st, cx + 3, rY + 19, rW - 6, 2.4, c.r.pctPropia, PDF_COLORS.border, PDF_COLORS.verde);
+      const stats = [
+        ['TÚ', c.r.pctPropia, PDF_COLORS.verde],
+        ['PROMEDIO', c.r.pctProm, PDF_COLORS.muted],
+        ['LÍDER', c.r.pctLider, PDF_COLORS.navy],
+      ];
+      const sW = (rW - 6) / 3;
+      stats.forEach(([lbl, val, col], j) => {
+        const sx = cx + 3 + j * sW;
+        pdfSetFont(st, 'bold', 5.2, PDF_COLORS.mutedLight);
+        st.doc.text(lbl, sx, rY + 23.5);
+        pdfSetFont(st, 'bold', 8, col);
+        st.doc.text(`${(Number(val) || 0).toFixed(1)}%`, sx, rY + 27);
+      });
+    });
+    y = rY + rH + 3;
+    pdfSetFont(st, 'normal', 5.6, PDF_COLORS.mutedLight);
+    st.doc.text(`Fuente: Datos Abiertos MEF · % de ejecución (devengado / PIM ${new Date().getFullYear()}) · comparación entre municipalidades (gobiernos locales)`, x, y + 1);
+    y += 5;
+  }
+
   // Pie de página
   st.y = y; pdfEnsureSpace(st, 8); y = st.y;
   pdfSetFont(st, 'normal', 6.5, [176, 168, 152]);
@@ -2784,6 +2861,13 @@ async function generarDiagnosticoPDF() {
         return (b.pim_2026 || 0) - (a.pim_2026 || 0);
       });
 
+    // Ranking comparativo (provincia + departamento) — consulta en vivo a
+    // Datos Abiertos MEF. Puede tardar (~20s: el MEF escanea todo el dataset
+    // para agregar). No es crítico: si falla o no hay ubigeo, el PDF se
+    // genera igual sin la sección.
+    label.textContent = 'Calculando ranking (~30s)...';
+    const ranking = await obtenerRankingEntidad(kpisEntidad.entidad || {});
+
     label.textContent = 'Generando PDF...';
     const fechaStr   = new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
     const monitorUrl = `${window.location.origin}${window.location.pathname}?e=${SLUG}`;
@@ -2792,7 +2876,7 @@ async function generarDiagnosticoPDF() {
     dibujarResumenEjecutivo(st, {
       nombreEntidad, total: conAlertas.length, rojas, amarillas, sinAlerta,
       pimTotal, devTotal, certTotal, compTotal, saldoPim, saldoFinanciar,
-      top3, fechaStr, monitorUrl,
+      top3, fechaStr, monitorUrl, ranking,
       pliego: kpisEntidad.pliego || null,
     });
 
