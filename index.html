@@ -2599,7 +2599,13 @@ function dibujarResumenEjecutivo(st, d) {
   // "EJECUCIÓN DEL PIM" de arriba: cómo ejecuta esta entidad frente a
   // cómo ejecutan las demás, con el mismo criterio (solo inversión).
   if (d.ranking && (d.ranking.nac || d.ranking.dept || d.ranking.prov)) {
-    const rGap = 3, rW = (w - 2 * rGap) / 3, rH = 25;
+    // Tarjetas más grandes (antes rH=25) — con el bloque anterior el
+    // promedio/líder se leían apretados junto al relleno. Ahora hay más
+    // aire arriba de la barra para el triángulo Y su porcentaje exacto en
+    // texto (antes solo el color lo identificaba); la fila TÚ/PROM/LÍDER de
+    // abajo queda como refuerzo, no como única forma de leer el valor.
+    const rGap = 3, rW = (w - 2 * rGap) / 3, rH = 38;
+    const barH = 3.4;
     const rkH = 5 + rH + 4;
     st.y = y; pdfEnsureSpace(st, rkH + 3); y = st.y;
     pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
@@ -2615,36 +2621,64 @@ function dibujarResumenEjecutivo(st, d) {
       pdfCard(st, cx, rY, rW, rH, PDF_COLORS.white, PDF_COLORS.border);
       const nombreCorto = c.r && c.r.nombre ? c.r.nombre.toUpperCase().slice(0, 18) : '';
       const titulo = `${c.pre}${nombreCorto ? ' · ' + nombreCorto : ''}`;
-      pdfSetFont(st, 'bold', 5.6, PDF_COLORS.gold);
-      st.doc.text(titulo, cx + 2.5, rY + 4.2);
+      pdfSetFont(st, 'bold', 5.8, PDF_COLORS.gold);
+      st.doc.text(titulo, cx + 3, rY + 4.5);
       if (!c.r) {
-        pdfSetFont(st, 'normal', 6.5, PDF_COLORS.muted);
-        st.doc.text('Sin datos', cx + 2.5, rY + 14);
+        pdfSetFont(st, 'normal', 7, PDF_COLORS.muted);
+        st.doc.text('Sin datos', cx + 3, rY + 16);
         return;
       }
-      pdfSetFont(st, 'bold', 4.8, PDF_COLORS.mutedLight);
-      st.doc.text('PUESTO', cx + 2.5, rY + 8.2);
-      pdfSetFont(st, 'bold', 12, PDF_COLORS.navy);
-      st.doc.text(`${c.r.pos}`, cx + 2.5, rY + 13.8);
+      pdfSetFont(st, 'bold', 5, PDF_COLORS.mutedLight);
+      st.doc.text('PUESTO', cx + 3, rY + 9.5);
+      pdfSetFont(st, 'bold', 14, PDF_COLORS.navy);
+      st.doc.text(`${c.r.pos}`, cx + 3, rY + 16.5);
       const posW = st.doc.getTextWidth(`${c.r.pos}`);
-      pdfSetFont(st, 'normal', 7, PDF_COLORS.muted);
-      st.doc.text(`de ${c.r.total}`, cx + 2.5 + posW + 1.5, rY + 13.8);
-      pdfProgressBar(st, cx + 2.5, rY + 16.2, rW - 5, 2.2, c.r.pctPropia, PDF_COLORS.border, PDF_COLORS.verde, [
-        { pct: c.r.pctProm,  color: PDF_COLORS.muted }, // mismo color que la etiqueta "PROM" de abajo
-        { pct: c.r.pctLider, color: PDF_COLORS.navy },  // mismo color que la etiqueta "LÍDER" de abajo
-      ]);
+      pdfSetFont(st, 'normal', 7.5, PDF_COLORS.muted);
+      st.doc.text(`de ${c.r.total}`, cx + 3 + posW + 1.8, rY + 16.5);
+
+      const barX = cx + 3, barW = rW - 6, barY = rY + 26.5;
+      // Porcentaje exacto en texto justo encima de cada marca — antes solo
+      // el color del triángulo identificaba a qué corresponde, y había que
+      // leer los números de la fila de abajo (en columnas fijas, sin
+      // relación con la posición real en la barra) para saber el valor.
+      // Ahora el número está pegado al punto exacto que representa.
+      const mpProm  = Math.max(0, Math.min(100, Number(c.r.pctProm)  || 0));
+      const mpLider = Math.max(0, Math.min(100, Number(c.r.pctLider) || 0));
+      const mxProm  = barX + barW * mpProm  / 100;
+      const mxLider = barX + barW * mpLider / 100;
+      const txtProm  = `${mpProm.toFixed(1)}%`;
+      const txtLider = `${mpLider.toFixed(1)}%`;
+      pdfSetFont(st, 'bold', 6.2, PDF_COLORS.muted);
+      const wProm  = st.doc.getTextWidth(txtProm);
+      pdfSetFont(st, 'bold', 6.2, PDF_COLORS.navy);
+      const wLider = st.doc.getTextWidth(txtLider);
+      // Si promedio y líder caen muy cerca en la barra, sus etiquetas se
+      // tocarían — la de líder sube un poco para no solaparse.
+      const seTocan = (mxLider - mxProm) < (wProm / 2 + wLider / 2 + 1.5);
+
+      pdfSetFont(st, 'bold', 6.2, PDF_COLORS.muted);
+      st.doc.text(txtProm, mxProm, barY - 5, { align: 'center' });
+      pdfSetFont(st, 'bold', 6.2, PDF_COLORS.navy);
+      st.doc.text(txtLider, mxLider, seTocan ? barY - 8.5 : barY - 5, { align: 'center' });
+
+      const marcas = [
+        { pct: c.r.pctProm,  color: PDF_COLORS.muted },
+        { pct: c.r.pctLider, color: PDF_COLORS.navy },
+      ];
+      pdfProgressBar(st, barX, barY, barW, barH, c.r.pctPropia, PDF_COLORS.border, PDF_COLORS.verde, marcas);
+
       const stats = [
         ['TÚ', c.r.pctPropia, PDF_COLORS.verde],
         ['PROM', c.r.pctProm, PDF_COLORS.muted],
         ['LÍDER', c.r.pctLider, PDF_COLORS.navy],
       ];
-      const sW = (rW - 5) / 3;
+      const sW = barW / 3;
       stats.forEach(([lbl, val, col], j) => {
-        const sx = cx + 2.5 + j * sW;
-        pdfSetFont(st, 'bold', 4.6, PDF_COLORS.mutedLight);
-        st.doc.text(lbl, sx, rY + 20.2);
-        pdfSetFont(st, 'bold', 6.8, col);
-        st.doc.text(`${(Number(val) || 0).toFixed(1)}%`, sx, rY + 23.4);
+        const sx = barX + j * sW;
+        pdfSetFont(st, 'bold', 5, PDF_COLORS.mutedLight);
+        st.doc.text(lbl, sx, barY + barH + 3);
+        pdfSetFont(st, 'bold', 7.5, col);
+        st.doc.text(`${(Number(val) || 0).toFixed(1)}%`, sx, barY + barH + 6.5);
       });
     });
     y = rY + rH + 2.5;
