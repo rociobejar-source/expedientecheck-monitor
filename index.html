@@ -10,8 +10,9 @@
        no se rasteriza ningún HTML, así que no hace falta el bundle completo
        de html2pdf.js. Expone window.jspdf.jsPDF (documentado por jsPDF). -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <!-- SheetJS — genera el .xlsx del botón "Generar Excel". Expone window.XLSX. -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- ExcelJS — genera el .xlsx con estilo (colores, bordes, formatos) del
+       botón "Generar Excel". Expone window.ExcelJS. -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <style>
     :root {
       --bg:        #f0ede6;
@@ -854,14 +855,30 @@
         title="Exporta a Excel la misma información del diagnóstico, en columnas (una fila por inversión)">
         📊 <span id="btn-excel-label">Generar Excel</span>
       </button>
-      <label style="display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); cursor:pointer; padding:0 4px"
-        title="Agrega una hoja con el gasto corriente del pliego (fuera de Invierte.pe) — consulta en vivo al MEF, puede tardar hasta 1 minuto">
-        <input type="checkbox" id="chk-genericos" style="cursor:pointer">
-        Incluir gasto corriente (genéricos)
-      </label>
       <button class="btn-actualizar" id="btn-actualizar">
         <span id="icon-refresh">↻</span> Actualizar datos
       </button>
+    </div>
+  </div>
+
+  <!-- MODAL — se abre al pulsar "Generar Excel", pregunta si incluir genéricos -->
+  <div id="modal-excel-overlay" style="display:none; position:fixed; inset:0; background:rgba(15,15,15,0.45); z-index:1000; align-items:center; justify-content:center; padding:16px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px; max-width:400px; width:100%; box-shadow:0 12px 40px rgba(0,0,0,0.2);">
+      <div style="font-size:17px; font-weight:700; margin-bottom:8px; color:var(--header)">Generar Excel</div>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:22px; line-height:1.5;">
+        ¿Incluir también el gasto corriente del pliego (genéricos, fuera de Invierte.pe)? Esa hoja adicional consulta al MEF en vivo y puede tardar hasta 1 minuto.
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button id="btn-modal-solo-inversiones" class="btn-actualizar" style="width:100%; justify-content:center; background:var(--header); color:white; border:none;">
+          Solo inversiones <span style="opacity:.7; font-weight:400">(rápido)</span>
+        </button>
+        <button id="btn-modal-con-genericos" class="btn-actualizar" style="width:100%; justify-content:center; background:var(--surface); color:var(--header); border:1px solid var(--border);">
+          Inversiones + genéricos
+        </button>
+        <button id="btn-modal-cancelar" style="width:100%; text-align:center; background:none; border:none; color:var(--muted); font-size:12px; padding:8px; cursor:pointer;">
+          Cancelar
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2936,28 +2953,95 @@ async function generarDiagnosticoPDF() {
   }
 }
 
+// ── MODAL "Generar Excel" — pregunta si incluir genéricos ─────────
+// Un solo botón visible en el index (btn-excel); la elección "solo
+// inversiones" vs "+ genéricos" vive en este modal flotante, no en un
+// control aparte junto al botón.
+function preguntarIncluirGenericos() {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('modal-excel-overlay');
+    const btnSolo = document.getElementById('btn-modal-solo-inversiones');
+    const btnCon = document.getElementById('btn-modal-con-genericos');
+    const btnCancelar = document.getElementById('btn-modal-cancelar');
+    overlay.style.display = 'flex';
+
+    const cerrar = (valor) => {
+      overlay.style.display = 'none';
+      btnSolo.removeEventListener('click', onSolo);
+      btnCon.removeEventListener('click', onCon);
+      btnCancelar.removeEventListener('click', onCancelar);
+      overlay.removeEventListener('click', onOverlay);
+      resolve(valor);
+    };
+    const onSolo = () => cerrar(false);
+    const onCon = () => cerrar(true);
+    const onCancelar = () => cerrar(null);
+    const onOverlay = (e) => { if (e.target === overlay) cerrar(null); };
+
+    btnSolo.addEventListener('click', onSolo);
+    btnCon.addEventListener('click', onCon);
+    btnCancelar.addEventListener('click', onCancelar);
+    overlay.addEventListener('click', onOverlay);
+  });
+}
+
 // ── EXCEL — mismo diagnóstico que el PDF, pero en columnas ────────
 // Hoja "Inversiones": costo cero, son los mismos datos ya cargados en
 // memoria (obras + alertas) que arman la tabla y el PDF.
-// Hoja "Genéricos" (opt-in, checkbox): gasto corriente del pliego FUERA
-// de Invierte.pe — consulta en vivo al MEF filtrada por esta entidad
-// (agrupada por categoría/programa, no línea por línea) vía
+// Hoja "Genéricos" (opt-in, vía el modal): gasto corriente del pliego
+// FUERA de Invierte.pe — consulta en vivo al MEF filtrada por esta
+// entidad (agrupada por categoría/programa, no línea por línea) vía
 // /api/genericos-pliego. Es más liviana que el ranking nacional pero no
 // instantánea (~20-50s observado) — por eso es opcional, no automática.
+// Estilos con ExcelJS (colores, bordes, formatos) — SheetJS community no
+// soporta escribir estilos, por eso el cambio de librería.
+const EXCEL_COLORS = {
+  navy: 'FF0B2341', gold: 'FFD4A62A', white: 'FFFFFFFF',
+  border: 'FFE0D8CC', text: 'FF1C1C1C',
+  rojoBg: 'FFFDF0F0', amberBg: 'FFFDF6E8', greenBg: 'FFEAF6F1',
+  totalBg: 'FFF0EDE6',
+};
+
+function estilizarHeader(row, colorFondo) {
+  row.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: EXCEL_COLORS.white }, size: 10.5 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorFondo } };
+    cell.alignment = { vertical: 'middle', wrapText: true };
+    cell.border = {
+      top: { style: 'thin', color: { argb: EXCEL_COLORS.border } },
+      bottom: { style: 'thin', color: { argb: EXCEL_COLORS.border } },
+    };
+  });
+  row.height = 26;
+}
+
+function bordearFila(row) {
+  row.eachCell((cell) => {
+    cell.border = {
+      top:    { style: 'hair', color: { argb: EXCEL_COLORS.border } },
+      bottom: { style: 'hair', color: { argb: EXCEL_COLORS.border } },
+      left:   { style: 'hair', color: { argb: EXCEL_COLORS.border } },
+      right:  { style: 'hair', color: { argb: EXCEL_COLORS.border } },
+    };
+  });
+}
+
 async function generarExcelDiagnostico() {
   if (!kpisEntidad || !obras.length) {
     alert('Todavía no terminan de cargar los datos del monitor. Espera un momento e inténtalo de nuevo.');
     return;
   }
-  if (!window.XLSX) {
+  if (!window.ExcelJS) {
     alert('No se pudo cargar la librería de Excel (revisa tu conexión e inténtalo de nuevo).');
     return;
   }
 
+  const incluirGenericos = await preguntarIncluirGenericos();
+  if (incluirGenericos === null) return; // cancelado
+
   const btn   = document.getElementById('btn-excel');
   const label = document.getElementById('btn-excel-label');
   const labelOriginal = label.textContent;
-  const incluirGenericos = document.getElementById('chk-genericos').checked;
   btn.disabled = true;
   label.textContent = 'Generando...';
 
@@ -2965,37 +3049,80 @@ async function generarExcelDiagnostico() {
     const nombreEntidad = kpisEntidad.entidad?.nombre || SLUG;
     const conAlertas = obras.map(o => ({ ...o, _alertas: construirAlertasObra(o) }));
 
-    const filasInversiones = conAlertas.map(o => {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ExpedienteCheck';
+    wb.created = new Date();
+
+    // ── Hoja 1: Inversiones ──
+    const wsInv = wb.addWorksheet('Inversiones', { views: [{ state: 'frozen', ySplit: 1 }] });
+    wsInv.columns = [
+      { header: 'CUI',                       key: 'cui',        width: 11 },
+      { header: 'Nombre',                    key: 'nombre',     width: 46 },
+      { header: 'UEI',                       key: 'uei',        width: 30 },
+      { header: 'Estado',                    key: 'estado',     width: 16 },
+      { header: 'Modalidad',                 key: 'modalidad',  width: 14 },
+      { header: 'Contratista',               key: 'contratista',width: 26 },
+      { header: 'Avance físico (%)',         key: 'avFis',      width: 14 },
+      { header: 'Avance financiero (%)',     key: 'avFin',      width: 14 },
+      { header: 'PIM (S/)',                  key: 'pim',        width: 16 },
+      { header: 'Certificado (S/)',          key: 'cert',       width: 16 },
+      { header: 'Comprometido (S/)',         key: 'comp',       width: 16 },
+      { header: 'Devengado (S/)',            key: 'dev',        width: 16 },
+      { header: '% Ejecución PIM',           key: 'pctDev',     width: 13 },
+      { header: 'Costo actualizado (S/)',    key: 'costo',      width: 17 },
+      { header: 'Devengado acumulado (S/)',  key: 'devAcum',    width: 18 },
+      { header: 'Alertas',                   key: 'alertas',    width: 40 },
+      { header: 'Fecha inicio ejecución',    key: 'fIni',       width: 16 },
+      { header: 'Fecha fin ejecución',       key: 'fFin',       width: 16 },
+    ];
+
+    conAlertas.forEach(o => {
       const pim = Number(o.pim_2026) || 0;
       const dev = Number(o.devengado_2026) || 0;
-      return {
-        'CUI':                        o.cui,
-        'Nombre':                     o.nombre || '',
-        'UEI':                        o.uei || '',
-        'Estado':                     o.estado || '',
-        'Modalidad':                  o.modalidad || '',
-        'Contratista':                o.contratista || '',
-        'Avance físico (%)':          o.avance_fisico     != null ? Number(Number(o.avance_fisico).toFixed(1))     : null,
-        'Avance financiero (%)':      o.avance_financiero != null ? Number(Number(o.avance_financiero).toFixed(1)) : null,
-        'PIM (S/)':                   pim,
-        'Certificado (S/)':           Number(o.certificado_ano_vigente)  || 0,
-        'Comprometido (S/)':          Number(o.comprometido_ano_vigente) || 0,
-        'Devengado (S/)':             dev,
-        '% Ejecución PIM':            pim > 0 ? Number((dev / pim * 100).toFixed(1)) : 0,
-        'Costo actualizado (S/)':     Number(o.costo_actualizado) || 0,
-        'Devengado acumulado (S/)':   Number(o.dev_acumulado) || 0,
-        'Alertas':                    o._alertas.map(a => a.texto).join(', '),
-        'Fecha inicio ejecución':     o.fecha_inicio_ejecucion || '',
-        'Fecha fin ejecución':        o.fecha_fin_ejecucion || '',
-      };
+      const nivelMasAlto = o._alertas.some(a => a.nivel === 'rojo') ? 'rojo'
+        : o._alertas.some(a => a.nivel === 'amarillo') ? 'amarillo' : null;
+      const row = wsInv.addRow({
+        cui: o.cui, nombre: o.nombre || '', uei: o.uei || '',
+        estado: o.estado || '', modalidad: o.modalidad || '', contratista: o.contratista || '',
+        avFis: o.avance_fisico     != null ? Number(Number(o.avance_fisico).toFixed(1))     : null,
+        avFin: o.avance_financiero != null ? Number(Number(o.avance_financiero).toFixed(1)) : null,
+        pim, cert: Number(o.certificado_ano_vigente) || 0, comp: Number(o.comprometido_ano_vigente) || 0,
+        dev, pctDev: pim > 0 ? Number((dev / pim * 100).toFixed(1)) : 0,
+        costo: Number(o.costo_actualizado) || 0, devAcum: Number(o.dev_acumulado) || 0,
+        alertas: o._alertas.map(a => a.texto).join(', '),
+        fIni: o.fecha_inicio_ejecucion || '', fFin: o.fecha_fin_ejecucion || '',
+      });
+      ['pim', 'cert', 'comp', 'dev', 'costo', 'devAcum'].forEach(k => { row.getCell(k).numFmt = '#,##0.00'; });
+      ['avFis', 'avFin', 'pctDev'].forEach(k => { row.getCell(k).numFmt = '0.0"%"'; });
+      if (nivelMasAlto) {
+        const bg = nivelMasAlto === 'rojo' ? EXCEL_COLORS.rojoBg : EXCEL_COLORS.amberBg;
+        row.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } }; });
+      }
+      bordearFila(row);
+    });
+    estilizarHeader(wsInv.getRow(1), EXCEL_COLORS.navy);
+
+    // Fila de totales
+    const pimTot = conAlertas.reduce((s, o) => s + (Number(o.pim_2026) || 0), 0);
+    const devTot = conAlertas.reduce((s, o) => s + (Number(o.devengado_2026) || 0), 0);
+    const certTot = conAlertas.reduce((s, o) => s + (Number(o.certificado_ano_vigente) || 0), 0);
+    const compTot = conAlertas.reduce((s, o) => s + (Number(o.comprometido_ano_vigente) || 0), 0);
+    const totalRow = wsInv.addRow({
+      nombre: `TOTAL (${conAlertas.length} inversiones)`,
+      pim: pimTot, cert: certTot, comp: compTot, dev: devTot,
+      pctDev: pimTot > 0 ? Number((devTot / pimTot * 100).toFixed(1)) : 0,
+    });
+    ['pim', 'cert', 'comp', 'dev'].forEach(k => { totalRow.getCell(k).numFmt = '#,##0.00'; });
+    totalRow.getCell('pctDev').numFmt = '0.0"%"';
+    totalRow.eachCell(cell => {
+      cell.font = { bold: true };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL_COLORS.totalBg } };
+      cell.border = { top: { style: 'medium', color: { argb: EXCEL_COLORS.navy } } };
     });
 
-    const wb = XLSX.utils.book_new();
-    const wsInversiones = XLSX.utils.json_to_sheet(filasInversiones);
-    XLSX.utils.book_append_sheet(wb, wsInversiones, 'Inversiones');
-
+    // ── Hoja 2: Genéricos (opcional) ──
     if (incluirGenericos) {
-      label.textContent = 'Consultando gasto corriente (~30s)...';
+      label.textContent = 'Consultando gasto corriente (~30-60s)...';
       const withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))]);
       try {
         const resp = await withTimeout(
@@ -3003,23 +3130,45 @@ async function generarExcelDiagnostico() {
           90000
         );
         const filasGenericos = (resp.records || [])
-          .map(r => {
-            const pim = Number(r.PIM) || 0;
-            const dev = Number(r.DEV) || 0;
-            return {
-              'Categoría de gasto':      r.GENERICA_NOMBRE || '',
-              'Programa presupuestal':   r.PROGRAMA_PPTO_NOMBRE || '',
-              'PIM (S/)':                pim,
-              'Certificado (S/)':        Number(r.CERT) || 0,
-              'Comprometido (S/)':       Number(r.COMP) || 0,
-              'Devengado (S/)':          dev,
-              '% Ejecución':             pim > 0 ? Number((dev / pim * 100).toFixed(1)) : 0,
-            };
-          })
-          .sort((a, b) => b['PIM (S/)'] - a['PIM (S/)']);
+          .map(r => ({
+            categoria: r.GENERICA_NOMBRE || '', programa: r.PROGRAMA_PPTO_NOMBRE || '',
+            pim: Number(r.PIM) || 0, cert: Number(r.CERT) || 0, comp: Number(r.COMP) || 0, dev: Number(r.DEV) || 0,
+          }))
+          .sort((a, b) => b.pim - a.pim);
+
         if (filasGenericos.length) {
-          const wsGenericos = XLSX.utils.json_to_sheet(filasGenericos);
-          XLSX.utils.book_append_sheet(wb, wsGenericos, 'Genéricos');
+          const wsGen = wb.addWorksheet('Genéricos', { views: [{ state: 'frozen', ySplit: 1 }] });
+          wsGen.columns = [
+            { header: 'Categoría de gasto',    key: 'categoria', width: 32 },
+            { header: 'Programa presupuestal', key: 'programa',  width: 46 },
+            { header: 'PIM (S/)',              key: 'pim',       width: 16 },
+            { header: 'Certificado (S/)',      key: 'cert',      width: 16 },
+            { header: 'Comprometido (S/)',     key: 'comp',      width: 16 },
+            { header: 'Devengado (S/)',        key: 'dev',       width: 16 },
+            { header: '% Ejecución',           key: 'pct',       width: 13 },
+          ];
+          filasGenericos.forEach(f => {
+            const row = wsGen.addRow({ ...f, pct: f.pim > 0 ? Number((f.dev / f.pim * 100).toFixed(1)) : 0 });
+            ['pim', 'cert', 'comp', 'dev'].forEach(k => { row.getCell(k).numFmt = '#,##0.00'; });
+            row.getCell('pct').numFmt = '0.0"%"';
+            bordearFila(row);
+          });
+          estilizarHeader(wsGen.getRow(1), EXCEL_COLORS.gold);
+
+          const gPimTot = filasGenericos.reduce((s, f) => s + f.pim, 0);
+          const gDevTot = filasGenericos.reduce((s, f) => s + f.dev, 0);
+          const gCertTot = filasGenericos.reduce((s, f) => s + f.cert, 0);
+          const gCompTot = filasGenericos.reduce((s, f) => s + f.comp, 0);
+          const gTotalRow = wsGen.addRow({
+            categoria: 'TOTAL', pim: gPimTot, cert: gCertTot, comp: gCompTot, dev: gDevTot,
+            pct: gPimTot > 0 ? Number((gDevTot / gPimTot * 100).toFixed(1)) : 0,
+          });
+          ['pim', 'cert', 'comp', 'dev'].forEach(k => { gTotalRow.getCell(k).numFmt = '#,##0.00'; });
+          gTotalRow.getCell('pct').numFmt = '0.0"%"';
+          gTotalRow.eachCell(cell => {
+            cell.font = { bold: true };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL_COLORS.totalBg } };
+          });
         }
       } catch (e) {
         console.error('Error obteniendo genéricos:', e.message);
@@ -3029,7 +3178,16 @@ async function generarExcelDiagnostico() {
 
     label.textContent = 'Generando...';
     const fechaArchivo = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `diagnostico-${SLUG}-${fechaArchivo}.xlsx`);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `diagnostico-${SLUG}-${fechaArchivo}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
 
   } catch (err) {
     console.error('Error generando Excel:', err);
