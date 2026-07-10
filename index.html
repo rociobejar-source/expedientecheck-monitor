@@ -10,6 +10,8 @@
        no se rasteriza ningún HTML, así que no hace falta el bundle completo
        de html2pdf.js. Expone window.jspdf.jsPDF (documentado por jsPDF). -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- SheetJS — genera el .xlsx del botón "Generar Excel". Expone window.XLSX. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg:        #f0ede6;
@@ -847,6 +849,16 @@
         title="Genera el PDF con los indicadores y alertas que ya están cargados en este monitor">
         📄 <span id="btn-diagnostico-label">Generar diagnóstico PDF</span>
       </button>
+      <button class="btn-actualizar" id="btn-excel" onclick="generarExcelDiagnostico()"
+        style="background:var(--surface); color:var(--header); border:1px solid var(--border)"
+        title="Exporta a Excel la misma información del diagnóstico, en columnas (una fila por inversión)">
+        📊 <span id="btn-excel-label">Generar Excel</span>
+      </button>
+      <label style="display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); cursor:pointer; padding:0 4px"
+        title="Agrega una hoja con el gasto corriente del pliego (fuera de Invierte.pe) — consulta en vivo al MEF, puede tardar hasta 1 minuto">
+        <input type="checkbox" id="chk-genericos" style="cursor:pointer">
+        Incluir gasto corriente (genéricos)
+      </label>
       <button class="btn-actualizar" id="btn-actualizar">
         <span id="icon-refresh">↻</span> Actualizar datos
       </button>
@@ -2918,6 +2930,110 @@ async function generarDiagnosticoPDF() {
   } catch (err) {
     console.error('Error generando diagnóstico:', err);
     alert('No se pudo generar el diagnóstico: ' + (err?.message || err));
+  } finally {
+    btn.disabled = false;
+    label.textContent = labelOriginal;
+  }
+}
+
+// ── EXCEL — mismo diagnóstico que el PDF, pero en columnas ────────
+// Hoja "Inversiones": costo cero, son los mismos datos ya cargados en
+// memoria (obras + alertas) que arman la tabla y el PDF.
+// Hoja "Genéricos" (opt-in, checkbox): gasto corriente del pliego FUERA
+// de Invierte.pe — consulta en vivo al MEF filtrada por esta entidad
+// (agrupada por categoría/programa, no línea por línea) vía
+// /api/genericos-pliego. Es más liviana que el ranking nacional pero no
+// instantánea (~20-50s observado) — por eso es opcional, no automática.
+async function generarExcelDiagnostico() {
+  if (!kpisEntidad || !obras.length) {
+    alert('Todavía no terminan de cargar los datos del monitor. Espera un momento e inténtalo de nuevo.');
+    return;
+  }
+  if (!window.XLSX) {
+    alert('No se pudo cargar la librería de Excel (revisa tu conexión e inténtalo de nuevo).');
+    return;
+  }
+
+  const btn   = document.getElementById('btn-excel');
+  const label = document.getElementById('btn-excel-label');
+  const labelOriginal = label.textContent;
+  const incluirGenericos = document.getElementById('chk-genericos').checked;
+  btn.disabled = true;
+  label.textContent = 'Generando...';
+
+  try {
+    const nombreEntidad = kpisEntidad.entidad?.nombre || SLUG;
+    const conAlertas = obras.map(o => ({ ...o, _alertas: construirAlertasObra(o) }));
+
+    const filasInversiones = conAlertas.map(o => {
+      const pim = Number(o.pim_2026) || 0;
+      const dev = Number(o.devengado_2026) || 0;
+      return {
+        'CUI':                        o.cui,
+        'Nombre':                     o.nombre || '',
+        'UEI':                        o.uei || '',
+        'Estado':                     o.estado || '',
+        'Modalidad':                  o.modalidad || '',
+        'Contratista':                o.contratista || '',
+        'Avance físico (%)':          o.avance_fisico     != null ? Number(Number(o.avance_fisico).toFixed(1))     : null,
+        'Avance financiero (%)':      o.avance_financiero != null ? Number(Number(o.avance_financiero).toFixed(1)) : null,
+        'PIM (S/)':                   pim,
+        'Certificado (S/)':           Number(o.certificado_ano_vigente)  || 0,
+        'Comprometido (S/)':          Number(o.comprometido_ano_vigente) || 0,
+        'Devengado (S/)':             dev,
+        '% Ejecución PIM':            pim > 0 ? Number((dev / pim * 100).toFixed(1)) : 0,
+        'Costo actualizado (S/)':     Number(o.costo_actualizado) || 0,
+        'Devengado acumulado (S/)':   Number(o.dev_acumulado) || 0,
+        'Alertas':                    o._alertas.map(a => a.texto).join(', '),
+        'Fecha inicio ejecución':     o.fecha_inicio_ejecucion || '',
+        'Fecha fin ejecución':        o.fecha_fin_ejecucion || '',
+      };
+    });
+
+    const wb = XLSX.utils.book_new();
+    const wsInversiones = XLSX.utils.json_to_sheet(filasInversiones);
+    XLSX.utils.book_append_sheet(wb, wsInversiones, 'Inversiones');
+
+    if (incluirGenericos) {
+      label.textContent = 'Consultando gasto corriente (~30s)...';
+      const withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))]);
+      try {
+        const resp = await withTimeout(
+          fetch(`${API}/api/genericos-pliego?e=${SLUG}`).then(r => r.json()),
+          90000
+        );
+        const filasGenericos = (resp.records || [])
+          .map(r => {
+            const pim = Number(r.PIM) || 0;
+            const dev = Number(r.DEV) || 0;
+            return {
+              'Categoría de gasto':      r.GENERICA_NOMBRE || '',
+              'Programa presupuestal':   r.PROGRAMA_PPTO_NOMBRE || '',
+              'PIM (S/)':                pim,
+              'Certificado (S/)':        Number(r.CERT) || 0,
+              'Comprometido (S/)':       Number(r.COMP) || 0,
+              'Devengado (S/)':          dev,
+              '% Ejecución':             pim > 0 ? Number((dev / pim * 100).toFixed(1)) : 0,
+            };
+          })
+          .sort((a, b) => b['PIM (S/)'] - a['PIM (S/)']);
+        if (filasGenericos.length) {
+          const wsGenericos = XLSX.utils.json_to_sheet(filasGenericos);
+          XLSX.utils.book_append_sheet(wb, wsGenericos, 'Genéricos');
+        }
+      } catch (e) {
+        console.error('Error obteniendo genéricos:', e.message);
+        alert('El Excel se generará solo con inversiones: no se pudo obtener el gasto corriente del MEF a tiempo (' + e.message + ').');
+      }
+    }
+
+    label.textContent = 'Generando...';
+    const fechaArchivo = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `diagnostico-${SLUG}-${fechaArchivo}.xlsx`);
+
+  } catch (err) {
+    console.error('Error generando Excel:', err);
+    alert('No se pudo generar el Excel: ' + (err?.message || err));
   } finally {
     btn.disabled = false;
     label.textContent = labelOriginal;
