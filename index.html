@@ -2452,8 +2452,20 @@ function pdfProgressBar(st, x, y, w, h, pct, trackColor, fillColor, markers) {
   st.doc.setFillColor(...trackColor);
   st.doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F');
   if (p > 0) {
+    const fillW = Math.max(w * p / 100, h);
     st.doc.setFillColor(...fillColor);
-    st.doc.roundedRect(x, y, Math.max(w * p / 100, h), h, h / 2, h / 2, 'F');
+    st.doc.roundedRect(x, y, fillW, h, h / 2, h / 2, 'F');
+    // Cuadra el borde de avance (derecho): roundedRect redondea LAS 4
+    // esquinas por igual, así que con radio=h/2 el relleno visualmente
+    // termina hasta h/2 antes de su ancho real en el borde superior/inferior
+    // — justo donde tocan los triángulos de referencia. Con valores
+    // cercanos (ej. 35.4% vs 33%, ~1mm de diferencia) ese recorte alcanza
+    // para que el relleno parezca terminar antes de lo que realmente mide.
+    // Se repinta esa esquina recta; el cap izquierdo (que sí debe verse
+    // redondeado, igual que el riel) queda intacto.
+    if (p < 100 && fillW > h / 2) {
+      st.doc.rect(x + h / 2, y, fillW - h / 2, h, 'F');
+    }
   }
   // Marcas de referencia opcionales (ej. promedio y líder del grupo) — cada
   // una con el MISMO color que su etiqueta de texto abajo (ver llamada en
