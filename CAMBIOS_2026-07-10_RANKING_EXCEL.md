@@ -1,13 +1,17 @@
-# Cambios 2026-07-10 — Ranking de inversiones, optimización de PDF, exportación a Excel y limpieza de CUIs fantasma
+# Cambios 2026-07-10 — Ranking de inversiones, optimización de PDF y exportación a Excel
 
-Hechos sobre `main` (backend Supabase/Railway + frontend estático), **no** sobre
-`refactor/arquitectura`. Este documento es la guía para portar la misma
-funcionalidad cuando se retome ese refactor (backend pg/Identity en Cloud Run +
-eventual frontend React).
+Hechos originalmente sobre `main` (backend Supabase/Railway + frontend estático).
 
-Repos afectados: `expediente-check-backend` (`server.js`,
-`sync-tacna-v3.js`, `sync-coronel-portillo.js`, `sync-miraflores.js`) y
-`expedientecheck-monitor` (`index.html`).
+**Actualización 2026-07-10 (tarde) — backend portado a `refactor/arquitectura`:**
+las secciones 1, 2 y 5 (ranking, caché y limpieza de CUIs fantasma) ya están
+portadas al backend pg/Cloud Run. Detalle en "Estado del port" al final de
+cada sección. Lo único que queda pendiente es la sección 4 (Excel) y 3 (PDF),
+que viven enteramente en `index.html` y se portarán junto con el frontend
+React.
+
+Repos afectados: `expediente-check-backend` (`server.js` en `main` /
+`src/` en `refactor/arquitectura`) y `expedientecheck-monitor` (`index.html`,
+sin cambios en refactor todavía).
 
 ---
 
@@ -39,6 +43,11 @@ municipalidad — así se evita el problema de homónimos (hay 4 "Miraflores").
 endpoint `/api/ranking-inversiones` en `server.js` (ver sección 2, están
 acoplados).
 
+**Estado del port (refactor/arquitectura)**: ✅ backend portado. El filtro
+`FILTRO_SOLO_INVERSION_SQL` quedó en `src/config/index.js` (constante única,
+reutilizada por ranking y genéricos — ya no hardcodeada 2 veces). Pendiente
+`obtenerRankingEntidad()` en el futuro frontend React.
+
 ---
 
 ## 2. Optimización de tiempo — caché del ranking en el backend
@@ -64,6 +73,14 @@ observado); con caché caliente responde en milisegundos.
 `server.js`. Es agnóstico de la capa de datos (pg vs Supabase) — no toca
 ninguna tabla propia, solo cachea en memoria del proceso Node.
 
+**Estado del port (refactor/arquitectura)**: ✅ hecho. Nuevo
+`src/services/ranking.service.js` (`obtenerRankingInversiones`,
+`obtenerGenericosPliego`, ambas cachés) + `src/controllers/ranking.controller.js`
+(`GET /api/ranking-inversiones`, `GET /api/genericos-pliego`), montado en
+`app.js`. Usa `httpGet` de `src/lib/http.js` (con timeout de
+`config.MEF.HTTP_TIMEOUT_MS`) en vez de `https` nativo sin timeout como en
+`server.js` — mismo dato, más robusto ante un MEF colgado.
+
 ---
 
 ## 3. Rediseño del bloque de ranking en el PDF (`index.html`)
@@ -78,18 +95,10 @@ ninguna tabla propia, solo cachea en memoria del proceso Node.
   fluye natural; se agregó un guard (`pdfEnsureSpace(st, 24)`) antes del
   encabezado "Inversiones con alerta" para que nunca quede huérfano al pie
   de una hoja.
-- **Marca de referencia en la barra** (agregado después, por observación de
-  usuario): la barra de "TÚ" en cada tarjeta de ranking solo mostraba el
-  llenado absoluto — no había forma visual de saber si estaba por encima o
-  debajo del promedio del grupo, solo leyendo los números de abajo. Se
-  extendió `pdfProgressBar(st, x, y, w, h, pct, trackColor, fillColor,
-  markerPct, markerColor)` con 2 parámetros opcionales que dibujan una marca
-  vertical en la posición del promedio sobre la barra.
 
 **Dónde portar**: función `dibujarResumenEjecutivo(st, d)` en `index.html`
 (sección "Ranking de ejecución de inversiones" + el `y += kpiH + 4` que la
-precede), el `generarDiagnosticoPDF()` que ya no fuerza salto de página, y
-`pdfProgressBar()` con los parámetros de marker.
+precede), y el `generarDiagnosticoPDF()` que ya no fuerza salto de página.
 
 ---
 
@@ -142,58 +151,67 @@ bordes finos, fila de totales en negrita con borde superior.
 completo en `server.js` (incluye `fetchGenericosDesdeMef`, que reutiliza
 `RANKING_MEF_RESOURCE_ID` de la sección 2 — portar ambos juntos).
 
+**Estado del port (refactor/arquitectura)**: pendiente — es 100% frontend
+(`index.html`) + el endpoint de solo lectura ya portado en la sección 2. Se
+retoma con el frontend React.
+
 ---
 
-## 5. CUIs "fantasma" (genéricos que se colaban como inversiones)
+## 5. Limpieza de CUIs "fantasma" (Tacna y Coronel Portillo)
 
-**Síntoma**: en Tacna y Coronel Portillo aparecían CUIs sin nombre (fallback
-`CUI <código>`) en tabla/PDF/Excel — reportado por la jefa de Rocío.
+**Síntoma**: CUIs sin nombre ni estado apareciendo en la tabla/Excel/PDF con
+el fallback `CUI <código>` (ej. 2016766 en Tacna: "INICIATIVA A LA
+COMPETITIVIDAD", un producto de Programa Presupuestal, no un proyecto real
+de Invierte.pe). Encontrados también ~15 casos iguales en Coronel Portillo.
 
-**Causa raíz**: el descubrimiento de CUIs (`sync-certificado-comprometido.js`,
-patrón `PRODUCTO_PROYECTO` de 7 dígitos que empieza en '2'/'3') a veces
-matchea un "producto" de un Programa Presupuestal (ej. CUI 2016766 =
-"INICIATIVA A LA COMPETITIVIDAD" en Tacna) que NO es un proyecto real de
-Invierte.pe. `TIPO_ACT_PROY_NOMBRE='PROYECTO'` en el MEF **no sirve** para
-distinguirlos (ambos lo tienen) — la única señal confiable es que SSI-MEF
-(invierte.pe) no devuelve `NOMBRE_INVERSION` para estos códigos.
+**Causa raíz**: el filtro de descubrimiento de CUIs (patrón de 7 dígitos que
+empieza en 2/3) puede matchear códigos "PRODUCTO" de Programas
+Presupuestales que no son proyectos de inversión real. SSI-MEF no devuelve
+`NOMBRE_INVERSION` para esos códigos, así que quedan en `ssi_inversiones`
+con solo `codigo_unico`/`pim_ano_vigente` — el resto null.
 
-**Fix de pantalla**: `/api/obras` en `server.js` ahora descarta filas donde
-`nombre`/`estado` están vacíos en AMBAS fuentes (SSI + InfoObras).
+**Fix en 3 capas**:
+1. Filtro de visualización: si `nombre_obra` (Infobras) Y `nombre_inversion`
+   (SSI) Y ambos estados son null → se descarta la fila (no se muestra).
+2. Filtro de origen: en el sync SSI, si `!row.nombre_inversion` se descarta
+   antes de escribir (antes solo se descartaba el caso puntual "NO
+   REGISTRADO EN EL INVIERTE" con costo 0 — dejaba pasar estos fantasmas).
+3. Limpieza puntual de datos: se identificaron y borraron 16 filas ya
+   persistidas (15 Coronel Portillo + 1 Tacna). **Importante**: se excluyeron
+   deliberadamente 2 CUIs de Tacna (2502585, 2643374) que también tienen
+   `nombre_inversion` null en SSI pero SÍ tienen `nombre_obra`/`estado` reales
+   en Infobras — son proyectos legítimos, no fantasmas (ya estaban en
+   `config.CUIS_EXCLUIDOS_MANUAL` por otro motivo — ver nota en el archivo).
 
-**Fix de origen**: en `sync-tacna-v3.js`, `sync-coronel-portillo.js` y
-`sync-miraflores.js`, el guard que antes solo descartaba
-`estado_inversion === 'NO REGISTRADO EN EL INVIERTE'` con costo 0 ahora
-descarta cualquier fila sin `nombre_inversion` — así no se vuelven a
-insertar en futuros syncs.
+**Dónde portar**: filtro de visualización en la función que arma el listado
+de obras (`GET /api/obras` en `server.js`), y el discard en `syncSSI()` de
+cada sync municipal (`sync-tacna-v3.js`, `sync-coronel-portillo.js`,
+`sync-miraflores.js`) — la condición pasa de un caso puntual a
+`if (!row.nombre_inversion) descartar`.
 
-**Limpieza puntual** (2026-07-10, ya ejecutada en prod): se borraron 16 filas
-de `ssi_inversiones` — CUI 2016766 en Tacna, y 15 CUIs en Coronel Portillo
-(2016766, 2021237, 2021280, 2021281, 2488840, 2507002, 2531223, 2637616,
-2638729, 2711408, 2711804, 2728326, 2728793, 3043952, 3043977).
-**Ojo**: los CUIs 2502585 y 2643374 de Tacna (en `CUIS_EXCLUIDOS_MANUAL` de
-`sync-certificado-comprometido.js`) también tenían `nombre_inversion` nulo
-en SSI, pero **SÍ son proyectos reales** — InfoObras tiene su nombre/estado
-y se siguen mostrando bien en el monitor. No se borraron (verificado con una
-consulta posterior: solo esos 2 quedan con `nombre_inversion` null en toda
-la tabla, y ambos tienen respaldo de InfoObras).
-
-**Dónde portar**: el guard `!row.nombre_inversion` en los 3 scripts de sync,
-y el filtro de fila fantasma en `/api/obras`. Si el refactor reescribe estos
-syncs, esta validación debe ir en el punto donde se decide si un CUI
-descubierto entra o no a la tabla de inversiones — no en la capa de
-presentación solamente, porque si no se repite el mismo problema.
+**Estado del port (refactor/arquitectura)**: ✅ hecho.
+- `src/services/obras.service.js` → `listarObras()`: agregado el mismo
+  filtro (fila con `nombre_obra`/`nombre_inversion`/ambos estados null se
+  descarta con `.filter(Boolean)` después del `.map()`).
+- `src/sync/municipio.sync.js` → `syncSSI()`: descarte ampliado a
+  `!row.nombre_inversion` (reemplaza la condición puntual vieja). Este sync
+  unificado reemplaza a los 3 scripts viejos de `main`.
+- Limpieza de datos: la base Cloud SQL se migró el 2026-07-09 desde un dump
+  **anterior** a este cleanup (hecho el 2026-07-10 sobre Supabase/main), así
+  que tenía las mismas 16 filas fantasma intactas. Verificado y confirmado
+  con una query directa (18 filas con `nombre_inversion IS NULL`: 16
+  fantasmas reales + las 2 legítimas de Tacna) y borradas las 16 vía Cloud
+  SQL Auth Proxy. Verificación posterior: solo quedan las 2 legítimas.
 
 ---
 
 ## Notas para el refactor (backend pg + frontend React)
 
-- El resource ID del MEF (`615644aa-ef73-4358-b4e0-0c20931632f3`) y el
-  patrón CUI de "solo inversión" están **hardcodeados en 2 lugares** ahora
-  (`fetchRankingInversionesDesdeMef` y `fetchGenericosDesdeMef` en
-  `server.js`) — al portar, vale la pena extraerlos a una constante/función
-  compartida (`FILTRO_SOLO_INVERSION`, `MEF_RESOURCE_ID`) en un módulo único,
-  algo que en el frontend estático de hoy no se justificaba pero en el
-  refactor con módulos ES sí.
+- ~~El resource ID del MEF y el patrón CUI de "solo inversión" están
+  hardcodeados en 2 lugares~~ — **ya resuelto en el port**: extraídos a
+  `config.MEF.RESOURCE_PRESUPUESTO` (ya existía) y `config.FILTRO_SOLO_INVERSION_SQL`
+  (nuevo) en `src/config/index.js`; `ranking.service.js` es el único lugar
+  que arma ambas queries SQL.
 - Las cachés (`rankingCache`, `genericosCache`) son en memoria del proceso
   Node — funcionan porque hoy hay una sola instancia (`min=max=1` en el plan
   de Cloud Run, o Railway sin réplicas). Si el refactor corre con más de una
@@ -205,6 +223,3 @@ presentación solamente, porque si no se repite el mismo problema.
 - Todo lo del punto 4 (Excel) es 100% frontend + un endpoint de solo lectura
   — no depende de qué stack de auth/DB tenga el backend, así que portarlo es
   bajo riesgo.
-- El fix de la sección 5 (`!row.nombre_inversion`) es puramente de
-  validación en el pipeline de sync — no depende de Supabase vs pg, se porta
-  tal cual al reescribir esos scripts contra Cloud SQL.
