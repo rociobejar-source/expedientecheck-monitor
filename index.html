@@ -2447,7 +2447,7 @@ function pdfCard(st, x, y, w, h, fillColor, borderColor) {
   }
 }
 
-function pdfProgressBar(st, x, y, w, h, pct, trackColor, fillColor, markerPct, markerColor) {
+function pdfProgressBar(st, x, y, w, h, pct, trackColor, fillColor, markers) {
   const p = Math.max(0, Math.min(100, Number(pct) || 0));
   st.doc.setFillColor(...trackColor);
   st.doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F');
@@ -2455,17 +2455,22 @@ function pdfProgressBar(st, x, y, w, h, pct, trackColor, fillColor, markerPct, m
     st.doc.setFillColor(...fillColor);
     st.doc.roundedRect(x, y, Math.max(w * p / 100, h), h, h / 2, h / 2, 'F');
   }
-  // Marca de referencia opcional (ej. el promedio del grupo) — sin esto la
-  // barra solo muestra el llenado absoluto y no hay forma de ver, a simple
-  // vista, si ese llenado está por encima o por debajo del punto de
-  // comparación (hay que leer los números de abajo para saberlo).
-  if (markerPct != null) {
-    const mp = Math.max(0, Math.min(100, Number(markerPct) || 0));
+  // Marcas de referencia opcionales (ej. promedio y líder del grupo) — cada
+  // una con el MISMO color que su etiqueta de texto abajo (ver llamada en
+  // la tarjeta de ranking), para que el gráfico y los números se lean
+  // juntos sin ambigüedad. Se dibujan como triángulo ARRIBA de la barra
+  // (no como línea cruzando el relleno): cuando dos valores están muy
+  // cerca (ej. 35.4% vs 33.0%, a ~1mm de distancia en una barra de 54mm)
+  // una línea delgada queda camuflada dentro del relleno de color y se ve
+  // "corrida" — el triángulo, al estar siempre sobre fondo neutro, se lee
+  // igual de nítido sin importar si el punto cae dentro o fuera del relleno.
+  (markers || []).forEach(m => {
+    if (!m || m.pct == null) return;
+    const mp = Math.max(0, Math.min(100, Number(m.pct) || 0));
     const mx = x + (w * mp / 100);
-    st.doc.setDrawColor(...(markerColor || [90, 82, 72]));
-    st.doc.setLineWidth(0.4);
-    st.doc.line(mx, y - 0.7, mx, y + h + 0.7);
-  }
+    st.doc.setFillColor(...(m.color || [90, 82, 72]));
+    st.doc.triangle(mx - 0.9, y - 2.1, mx + 0.9, y - 2.1, mx, y - 0.4, 'F');
+  });
 }
 
 // ── PÁGINA 1: RESUMEN EJECUTIVO ───────────────────────────────
@@ -2612,7 +2617,10 @@ function dibujarResumenEjecutivo(st, d) {
       const posW = st.doc.getTextWidth(`${c.r.pos}`);
       pdfSetFont(st, 'normal', 7, PDF_COLORS.muted);
       st.doc.text(`de ${c.r.total}`, cx + 2.5 + posW + 1.5, rY + 13.8);
-      pdfProgressBar(st, cx + 2.5, rY + 16.2, rW - 5, 2.2, c.r.pctPropia, PDF_COLORS.border, PDF_COLORS.verde, c.r.pctProm, PDF_COLORS.navy);
+      pdfProgressBar(st, cx + 2.5, rY + 16.2, rW - 5, 2.2, c.r.pctPropia, PDF_COLORS.border, PDF_COLORS.verde, [
+        { pct: c.r.pctProm,  color: PDF_COLORS.muted }, // mismo color que la etiqueta "PROM" de abajo
+        { pct: c.r.pctLider, color: PDF_COLORS.navy },  // mismo color que la etiqueta "LÍDER" de abajo
+      ]);
       const stats = [
         ['TÚ', c.r.pctPropia, PDF_COLORS.verde],
         ['PROM', c.r.pctProm, PDF_COLORS.muted],
