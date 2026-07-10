@@ -2169,7 +2169,6 @@ document.getElementById('popup-overlay').addEventListener('click', e => {
 // Abiertos MEF), porque compara contra OTRAS municipalidades que no
 // están en los datos ya cargados de esta entidad.
 // ═══════════════════════════════════════════════════════════════
-const RESOURCE_ID_MEF = '615644aa-ef73-4358-b4e0-0c20931632f3';
 
 // Mismo cálculo de alertas por obra que usa la tabla del monitor
 // (renderTabla) — copiado tal cual para no arriesgar el rendering
@@ -2270,32 +2269,33 @@ function construirAlertasObra(o) {
   return alertas;
 }
 
-// Ranking de ejecución presupuestal (devengado/PIM) de la entidad frente a
-// las demás municipalidades de su PROVINCIA y de su DEPARTAMENTO.
+// Ranking de ejecución de INVERSIONES (devengado/PIM, solo proyectos de
+// inversión) de la entidad frente a las demás municipalidades del país,
+// de su DEPARTAMENTO y de su PROVINCIA.
 //
-// Una sola consulta al departamento con GROUP BY server-side. Notas MEF:
-//  - El endpoint CKAN (datastore_search_sql) sí agrega, pero MONTO_* son
-//    columnas de texto → hay que castear con ::numeric o SUM() falla.
-//  - El código "EJECUTORA" es el ubigeo de la municipalidad, así que la
-//    provincia se deriva por prefijo (dept+prov = primeros 4 dígitos) y la
-//    propia entidad se identifica por EJECUTORA === ubigeo. Esto evita el
-//    problema de los homónimos (hay 4 "Miraflores" en el país).
+// La agregación nacional (con el filtro de solo-inversión, mismo criterio
+// que sync-certificado-comprometido.js) vive en el backend, cacheada en
+// memoria por 6h (ver /api/ranking-inversiones en server.js) — evita que
+// cada generación de PDF dispare de nuevo el full-scan al MEF (26-61s).
+// Acá solo se consume esa lista ya agregada y se deriva client-side:
+//  - El código "EJECUTORA" es el ubigeo de la municipalidad, así que el
+//    departamento/provincia se derivan por prefijo (dept = 2 dígitos,
+//    dept+prov = 4 dígitos) y la propia entidad se identifica por
+//    EJECUTORA === ubigeo. Esto evita el problema de los homónimos (hay 4
+//    "Miraflores" en el país).
 async function obtenerRankingEntidad(entidad) {
   const ubigeo = String(entidad?.ubigeo || '').trim();
   if (!/^\d{6}$/.test(ubigeo)) return null;
   const dd = ubigeo.slice(0, 2);       // departamento
   const prefProv = ubigeo.slice(0, 4); // departamento + provincia
   try {
-    const ano = new Date().getFullYear().toString();
-    // Alias entrecomillados: Postgres pasa a minúsculas los identificadores
-    // sin comillas, así que sin ellas el JSON vuelve con `pim`/`dev`/`dep_nom`.
-    const sql = `SELECT "EJECUTORA","DEPARTAMENTO_EJECUTORA_NOMBRE" AS "DEP_NOM","PROVINCIA_EJECUTORA_NOMBRE" AS "PROV_NOM",SUM("MONTO_PIM"::numeric) AS "PIM",SUM("MONTO_DEVENGADO"::numeric) AS "DEV" FROM "${RESOURCE_ID_MEF}" WHERE "DEPARTAMENTO_EJECUTORA"='${dd}' AND "NIVEL_GOBIERNO"='M' AND "ANO_EJE"='${ano}' GROUP BY "EJECUTORA","DEPARTAMENTO_EJECUTORA_NOMBRE","PROVINCIA_EJECUTORA_NOMBRE"`;
     const withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))]);
-    // El MEF escanea todo el dataset nacional para agregar → observado 18-41s.
-    // Timeout amplio (60s) para no abortar antes de que responda.
+    // Con caché caliente el backend responde en milisegundos; solo la
+    // primera solicitud tras vencer la caché (cada 6h) tarda 26-61s —
+    // timeout amplio (90s) para cubrir ese caso frío sin abortar antes.
     const resp = await withTimeout(
-      fetch(`${API}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`).then(r => r.json()),
-      60000
+      fetch(`${API}/api/ranking-inversiones`).then(r => r.json()),
+      90000
     );
     const todas = (resp.records || [])
       .map(r => ({
@@ -2310,7 +2310,9 @@ async function obtenerRankingEntidad(entidad) {
     if (!todas.length) return null;
 
     // Rankea una lista por % de ejecución y ubica la propia (por ubigeo).
-    const rankear = (lista) => {
+    // nameKey indica de qué campo sacar el nombre a mostrar en el título
+    // de la tarjeta ('dep'|'prov'|null — nacional no lleva nombre extra).
+    const rankear = (lista, nameKey) => {
       const ord = [...lista].sort((a, b) => b.pct - a.pct);
       const idx = ord.findIndex(r => r.cod === ubigeo);
       if (idx < 0) return null;
@@ -2321,13 +2323,14 @@ async function obtenerRankingEntidad(entidad) {
         pctPropia: ord[idx].pct,
         pctProm: prom,
         pctLider: ord[0].pct,
-        nombre: idx >= 0 ? (lista === todas ? ord[idx].depNom : ord[idx].provNom) : '',
+        nombre: nameKey === 'dep' ? ord[idx].depNom : nameKey === 'prov' ? ord[idx].provNom : '',
       };
     };
-    const dept = rankear(todas);
-    const prov = rankear(todas.filter(r => r.cod.startsWith(prefProv)));
-    if (!dept && !prov) return null;
-    return { prov, dept };
+    const nac  = rankear(todas, null);
+    const dept = rankear(todas.filter(r => r.cod.startsWith(dd)), 'dep');
+    const prov = rankear(todas.filter(r => r.cod.startsWith(prefProv)), 'prov');
+    if (!nac && !dept && !prov) return null;
+    return { nac, dept, prov };
   } catch (e) {
     console.error('Error calculando ranking:', e.message);
     return null;
@@ -2534,6 +2537,62 @@ function dibujarResumenEjecutivo(st, d) {
   });
   y += kpiH + 4;
 
+  // ── Ranking de ejecución de inversiones (nacional + departamento + provincia) ──
+  // Va junto a los KPIs principales porque complementa directamente
+  // "EJECUCIÓN DEL PIM" de arriba: cómo ejecuta esta entidad frente a
+  // cómo ejecutan las demás, con el mismo criterio (solo inversión).
+  if (d.ranking && (d.ranking.nac || d.ranking.dept || d.ranking.prov)) {
+    const rGap = 3, rW = (w - 2 * rGap) / 3, rH = 25;
+    const rkH = 5 + rH + 4;
+    st.y = y; pdfEnsureSpace(st, rkH + 3); y = st.y;
+    pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
+    st.doc.text('RANKING DE EJECUCIÓN DE INVERSIONES · FRENTE A OTRAS MUNICIPALIDADES', x, y + 3);
+    const rY = y + 5;
+    const cards = [
+      { r: d.ranking.nac,  pre: 'NACIONAL' },
+      { r: d.ranking.dept, pre: 'DEPARTAMENTO' },
+      { r: d.ranking.prov, pre: 'PROVINCIA' },
+    ];
+    cards.forEach((c, i) => {
+      const cx = x + i * (rW + rGap);
+      pdfCard(st, cx, rY, rW, rH, PDF_COLORS.white, PDF_COLORS.border);
+      const nombreCorto = c.r && c.r.nombre ? c.r.nombre.toUpperCase().slice(0, 18) : '';
+      const titulo = `${c.pre}${nombreCorto ? ' · ' + nombreCorto : ''}`;
+      pdfSetFont(st, 'bold', 5.6, PDF_COLORS.gold);
+      st.doc.text(titulo, cx + 2.5, rY + 4.2);
+      if (!c.r) {
+        pdfSetFont(st, 'normal', 6.5, PDF_COLORS.muted);
+        st.doc.text('Sin datos', cx + 2.5, rY + 14);
+        return;
+      }
+      pdfSetFont(st, 'bold', 4.8, PDF_COLORS.mutedLight);
+      st.doc.text('PUESTO', cx + 2.5, rY + 8.2);
+      pdfSetFont(st, 'bold', 12, PDF_COLORS.navy);
+      st.doc.text(`${c.r.pos}`, cx + 2.5, rY + 13.8);
+      const posW = st.doc.getTextWidth(`${c.r.pos}`);
+      pdfSetFont(st, 'normal', 7, PDF_COLORS.muted);
+      st.doc.text(`de ${c.r.total}`, cx + 2.5 + posW + 1.5, rY + 13.8);
+      pdfProgressBar(st, cx + 2.5, rY + 16.2, rW - 5, 2.2, c.r.pctPropia, PDF_COLORS.border, PDF_COLORS.verde);
+      const stats = [
+        ['TÚ', c.r.pctPropia, PDF_COLORS.verde],
+        ['PROM', c.r.pctProm, PDF_COLORS.muted],
+        ['LÍDER', c.r.pctLider, PDF_COLORS.navy],
+      ];
+      const sW = (rW - 5) / 3;
+      stats.forEach(([lbl, val, col], j) => {
+        const sx = cx + 2.5 + j * sW;
+        pdfSetFont(st, 'bold', 4.6, PDF_COLORS.mutedLight);
+        st.doc.text(lbl, sx, rY + 20.2);
+        pdfSetFont(st, 'bold', 6.8, col);
+        st.doc.text(`${(Number(val) || 0).toFixed(1)}%`, sx, rY + 23.4);
+      });
+    });
+    y = rY + rH + 2.5;
+    pdfSetFont(st, 'normal', 5.4, PDF_COLORS.mutedLight);
+    st.doc.text(`Fuente: Datos Abiertos MEF · % de ejecución de inversiones (devengado / PIM ${new Date().getFullYear()}) · solo proyectos de inversión, mismo criterio que "Con seguimiento ExpedienteCheck"`, x, y + 1);
+    y += 4.5;
+  }
+
   // Estado del presupuesto — barra por concepto con monto y porcentaje.
   // Los saldos (PIM / por financiar) ya no se repiten aquí: viven en los
   // KPIs "Con seguimiento ExpedienteCheck" de arriba.
@@ -2627,64 +2686,17 @@ function dibujarResumenEjecutivo(st, d) {
     y = ty + 2;
   }
 
-  // ── Ranking comparativo de ejecución (provincia + departamento) ──
-  if (d.ranking && (d.ranking.prov || d.ranking.dept)) {
-    const rkH = 6 + 28 + 5;
-    st.y = y; pdfEnsureSpace(st, rkH + 4); y = st.y;
-    pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
-    st.doc.text('RANKING DE EJECUCIÓN PRESUPUESTAL · FRENTE A OTRAS MUNICIPALIDADES', x, y + 3);
-    const rGap = 4, rW = (w - rGap) / 2, rH = 28, rY = y + 6;
-    const cards = [
-      { r: d.ranking.prov, pre: 'PROVINCIA' },
-      { r: d.ranking.dept, pre: 'DEPARTAMENTO' },
-    ];
-    cards.forEach((c, i) => {
-      const cx = x + i * (rW + rGap);
-      pdfCard(st, cx, rY, rW, rH, PDF_COLORS.white, PDF_COLORS.border);
-      const titulo = `${c.pre}${c.r && c.r.nombre ? ' DE ' + c.r.nombre.toUpperCase() : ''}`;
-      pdfSetFont(st, 'bold', 6, PDF_COLORS.gold);
-      st.doc.text(titulo, cx + 3, rY + 5);
-      if (!c.r) {
-        pdfSetFont(st, 'normal', 7, PDF_COLORS.muted);
-        st.doc.text('Sin ejecución registrada este año', cx + 3, rY + 15);
-        return;
-      }
-      pdfSetFont(st, 'bold', 5.4, PDF_COLORS.mutedLight);
-      st.doc.text('PUESTO', cx + 3, rY + 9.5);
-      pdfSetFont(st, 'bold', 15, PDF_COLORS.navy);
-      st.doc.text(`${c.r.pos}`, cx + 3, rY + 16.5);
-      const posW = st.doc.getTextWidth(`${c.r.pos}`);
-      pdfSetFont(st, 'normal', 8, PDF_COLORS.muted);
-      st.doc.text(`de ${c.r.total}`, cx + 3 + posW + 2, rY + 16.5);
-      pdfProgressBar(st, cx + 3, rY + 19, rW - 6, 2.4, c.r.pctPropia, PDF_COLORS.border, PDF_COLORS.verde);
-      const stats = [
-        ['TÚ', c.r.pctPropia, PDF_COLORS.verde],
-        ['PROMEDIO', c.r.pctProm, PDF_COLORS.muted],
-        ['LÍDER', c.r.pctLider, PDF_COLORS.navy],
-      ];
-      const sW = (rW - 6) / 3;
-      stats.forEach(([lbl, val, col], j) => {
-        const sx = cx + 3 + j * sW;
-        pdfSetFont(st, 'bold', 5.2, PDF_COLORS.mutedLight);
-        st.doc.text(lbl, sx, rY + 23.5);
-        pdfSetFont(st, 'bold', 8, col);
-        st.doc.text(`${(Number(val) || 0).toFixed(1)}%`, sx, rY + 27);
-      });
-    });
-    y = rY + rH + 3;
-    pdfSetFont(st, 'normal', 5.6, PDF_COLORS.mutedLight);
-    st.doc.text(`Fuente: Datos Abiertos MEF · % de ejecución (devengado / PIM ${new Date().getFullYear()}) · comparación entre municipalidades (gobiernos locales)`, x, y + 1);
-    y += 5;
-  }
-
   // Pie de página
   st.y = y; pdfEnsureSpace(st, 8); y = st.y;
   pdfSetFont(st, 'normal', 6.5, [176, 168, 152]);
   st.doc.text('EXPEDIENTECHECK · MONITOR DE OBRAS', x, y + 3);
   st.doc.text(d.monitorUrl, x + w, y + 3, { align: 'right' });
 
+  // Flujo natural: no se fuerza salto de página aquí. Si el resumen
+  // ejecutivo termina antes del fin de la hoja, el detalle de inversiones
+  // (dibujado por el caller) continúa en el espacio restante — evita dejar
+  // una hoja parcialmente en blanco cuando el resumen es corto.
   st.y = y + 6;
-  pdfNewPage(st); // el resumen ejecutivo siempre ocupa su propia página
 }
 
 // ── TARJETA DE INVERSIÓN (páginas de detalle) ─────────────────
@@ -2865,7 +2877,7 @@ async function generarDiagnosticoPDF() {
     // Datos Abiertos MEF. Puede tardar (~20s: el MEF escanea todo el dataset
     // para agregar). No es crítico: si falla o no hay ubigeo, el PDF se
     // genera igual sin la sección.
-    label.textContent = 'Calculando ranking (~30s)...';
+    label.textContent = 'Calculando ranking...';
     const ranking = await obtenerRankingEntidad(kpisEntidad.entidad || {});
 
     label.textContent = 'Generando PDF...';
@@ -2880,6 +2892,10 @@ async function generarDiagnosticoPDF() {
       pliego: kpisEntidad.pliego || null,
     });
 
+    // Con el resumen ejecutivo fluyendo natural (sin salto forzado), este
+    // encabezado puede caer en cualquier punto de la página — se reserva
+    // su alto completo para que nunca quede huérfano al pie de una hoja.
+    pdfEnsureSpace(st, 24);
     pdfSetFont(st, 'bold', 6.5, PDF_COLORS.mutedLight);
     st.doc.text(nombreEntidad.toUpperCase(), st.marginX, st.y + 3);
     pdfSetFont(st, 'normal', 7, PDF_COLORS.mutedLight);
