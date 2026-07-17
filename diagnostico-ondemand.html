@@ -283,6 +283,11 @@
         autocomplete="off" spellcheck="false">
       <button id="btnBuscar" class="btn-primary" onclick="iniciarDiagnostico()">Analizar</button>
     </div>
+    <div class="search-row" id="filaCodigoUE" style="margin-top:8px">
+      <input id="inputCodigoUE" class="search-input" type="text" inputmode="numeric"
+        placeholder="Código de Unidad Ejecutora / SEC_EJEC (opcional, ej: 300556)"
+        autocomplete="off" spellcheck="false">
+    </div>
     <div class="search-row" id="filaDeptProv" style="margin-top:8px">
       <input id="inputDepartamento" class="search-input" type="text"
         placeholder="Departamento (ej: AREQUIPA)" autocomplete="off" spellcheck="false">
@@ -341,24 +346,28 @@ function setModo(m) {
   document.getElementById('btnModoNacional').classList.toggle('modo-btn-active', m === 'nacional');
   const inputEj  = document.getElementById('inputEjecutora');
   const filaDeptProv = document.getElementById('filaDeptProv');
+  const filaCodigoUE = document.getElementById('filaCodigoUE');
   const hint     = document.getElementById('modoHint');
   const hintSub  = document.getElementById('modoHintSub');
   inputEj.value = valoresPorModo[m] || '';
   if (m === 'muni') {
     inputEj.placeholder = 'Ej: MUNICIPALIDAD PROVINCIAL DE AREQUIPA';
-    hint.textContent    = 'Ingresa el nombre exacto de la unidad ejecutora tal como figura en el MEF. El sistema consulta las APIs del MEF y genera el diagnóstico automáticamente.';
-    hintSub.textContent = 'Departamento y provincia son obligatorios para calcular el ranking comparativo.';
+    hint.textContent    = 'Ingresa el nombre exacto de la unidad ejecutora tal como figura en el MEF, o su Código de Unidad Ejecutora (SEC_EJEC) para una búsqueda exacta. El sistema consulta las APIs del MEF y genera el diagnóstico automáticamente.';
+    hintSub.textContent = 'Con el código SEC_EJEC no necesitas nombre, departamento ni provincia (se completan solos). Sin código, el nombre exacto + departamento + provincia son obligatorios.';
     filaDeptProv.style.display = 'flex';
+    filaCodigoUE.style.display = 'flex';
   } else if (m === 'gore') {
     inputEj.placeholder = 'Ej: AREQUIPA (solo el departamento/región)';
     hint.textContent    = 'Ingresa solo el nombre del departamento o región. El sistema identifica automáticamente el Gobierno Regional (Pliego) y trae TODAS las inversiones de todas sus Unidades Ejecutoras — puede tardar varios minutos por el volumen.';
     hintSub.textContent = 'No necesitas el nombre exacto del Pliego ni provincia — solo el departamento.';
     filaDeptProv.style.display = 'none';
+    filaCodigoUE.style.display = 'none';
   } else {
     inputEj.placeholder = 'Ej: EDUCACION, SALUD, TRANSPORTES (nombre del ministerio o Pliego)';
     hint.textContent    = 'Ingresa un fragmento del nombre del Pliego a nivel nacional (ej: un ministerio o entidad autónoma). El sistema identifica el Pliego exacto y trae TODAS las inversiones de todas sus Unidades Ejecutoras — en entidades grandes puede haber miles de inversiones y tardar varios minutos.';
     hintSub.textContent = 'No necesitas el nombre exacto — un fragmento identificable del Pliego es suficiente.';
     filaDeptProv.style.display = 'none';
+    filaCodigoUE.style.display = 'none';
   }
 }
 
@@ -382,14 +391,39 @@ function setLoading(msg, step) {
 }
 
 // ── API: Datos Abiertos MEF → vía Railway ────────────────────
-async function fetchMEFCUIs(ejecutora, departamento) {
-  const deptFilter = departamento ? ` AND "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}'` : '';
-  const sql = `SELECT "PRODUCTO_PROYECTO","MONTO_PIM","MONTO_CERTIFICADO","MONTO_COMPROMETIDO_ANUAL","MONTO_DEVENGADO" FROM "${RESOURCE_ID}" WHERE "EJECUTORA_NOMBRE"='${ejecutora}'${deptFilter} AND "ANO_EJE"='${ANO}' LIMIT 32000`;
+// Modo Municipalidad: si viene `codigoUE` (SEC_EJEC) se filtra por ese código
+// único de la Unidad Ejecutora — búsqueda exacta e infalible, evita el problema
+// del match por nombre exacto (ej. "LOS BAÑOS DEL INCA" con ñ y "LOS"). Si no
+// viene código, sigue el comportamiento histórico por EJECUTORA_NOMBRE.
+async function fetchMEFCUIs(ejecutora, departamento, codigoUE) {
+  const filtro = codigoUE
+    ? `"SEC_EJEC"='${codigoUE}'`
+    : `"EJECUTORA_NOMBRE"='${ejecutora}'${departamento ? ` AND "DEPARTAMENTO_EJECUTORA_NOMBRE"='${departamento}'` : ''}`;
+  const sql = `SELECT "PRODUCTO_PROYECTO","MONTO_PIM","MONTO_CERTIFICADO","MONTO_COMPROMETIDO_ANUAL","MONTO_DEVENGADO" FROM "${RESOURCE_ID}" WHERE ${filtro} AND "ANO_EJE"='${ANO}' LIMIT 32000`;
   const resp = await fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`);
   if (!resp.ok) throw new Error(`Datos Abiertos MEF respondió ${resp.status}`);
   const json = await resp.json();
   if (json.error) throw new Error('Error MEF: ' + json.error);
   return json.records || [];
+}
+
+// Resuelve el nombre oficial + departamento + provincia de una Unidad Ejecutora
+// a partir de su SEC_EJEC. Devuelve null si el código no existe en el año en curso.
+// Con esto, buscar por código autocompleta todo lo demás (y el ranking, que se
+// calcula por EJECUTORA_NOMBRE/departamento/provincia, sigue funcionando).
+async function resolverUEporCodigo(codigoUE) {
+  const sql = `SELECT DISTINCT "EJECUTORA_NOMBRE","DEPARTAMENTO_EJECUTORA_NOMBRE","PROVINCIA_EJECUTORA_NOMBRE" FROM "${RESOURCE_ID}" WHERE "SEC_EJEC"='${codigoUE}' AND "ANO_EJE"='${ANO}' LIMIT 1`;
+  const resp = await fetch(`${BACKEND}/api/proxy/datos-abiertos?sql=${encodeURIComponent(sql)}`);
+  if (!resp.ok) throw new Error(`Datos Abiertos MEF respondió ${resp.status}`);
+  const json = await resp.json();
+  if (json.error) throw new Error('Error MEF: ' + json.error);
+  const r = (json.records || [])[0];
+  if (!r) return null;
+  return {
+    nombre:      (r.EJECUTORA_NOMBRE || '').trim(),
+    departamento:(r.DEPARTAMENTO_EJECUTORA_NOMBRE || '').trim() || null,
+    provincia:   (r.PROVINCIA_EJECUTORA_NOMBRE || '').trim() || null,
+  };
 }
 
 // ── RESOLVER PLIEGO REAL a partir de un fragmento (ej: "AREQUIPA", "EDUCACION") ─
@@ -1185,12 +1219,20 @@ async function logBackend(ejecutora, total, alertas) {
 async function iniciarDiagnostico() {
   const esAgregado    = MODO === 'gore' || MODO === 'nacional'; // requiere resolver Pliego
   const ejecutora      = document.getElementById('inputEjecutora').value.trim().toUpperCase();
-  const departamento   = document.getElementById('inputDepartamento').value.trim().toUpperCase() || null;
-  const provincia      = document.getElementById('inputProvincia').value.trim().toUpperCase() || null;
+  let   departamento   = document.getElementById('inputDepartamento').value.trim().toUpperCase() || null;
+  let   provincia      = document.getElementById('inputProvincia').value.trim().toUpperCase() || null;
+  // Municipalidad: Código de Unidad Ejecutora (SEC_EJEC) para búsqueda exacta.
+  // Solo aplica en modo muni; en GORE/Nacional el campo está oculto.
+  const codigoUE       = !esAgregado ? (document.getElementById('inputCodigoUE').value || '').trim() : '';
 
-  if (!ejecutora || ejecutora.length < 3) { alert(esAgregado ? 'Ingresa un fragmento del nombre a buscar.' : 'Ingresa el nombre de la municipalidad ejecutora.'); return; }
-  if (!esAgregado && !departamento) { alert('Ingresa el departamento para calcular el ranking comparativo.'); return; }
-  if (!esAgregado && !provincia)    { alert('Ingresa la provincia para calcular el ranking comparativo.'); return; }
+  // El código es numérico — validarlo también blinda contra inyección en el SQL.
+  if (codigoUE && !/^\d+$/.test(codigoUE)) { alert('El Código de Unidad Ejecutora (SEC_EJEC) debe ser numérico. Ej: 300556'); return; }
+  // Con código válido no se exige nombre/departamento/provincia: se resuelven del MEF.
+  if (!codigoUE) {
+    if (!ejecutora || ejecutora.length < 3) { alert(esAgregado ? 'Ingresa un fragmento del nombre a buscar.' : 'Ingresa el nombre de la municipalidad ejecutora, o su Código de Unidad Ejecutora (SEC_EJEC).'); return; }
+    if (!esAgregado && !departamento) { alert('Ingresa el departamento para calcular el ranking comparativo (o usa el Código de Unidad Ejecutora).'); return; }
+    if (!esAgregado && !provincia)    { alert('Ingresa la provincia para calcular el ranking comparativo (o usa el Código de Unidad Ejecutora).'); return; }
+  }
 
   document.getElementById('errorBox').style.display  = 'none';
   document.getElementById('resultado').style.display = 'none';
@@ -1207,12 +1249,24 @@ async function iniciarDiagnostico() {
       const resuelto = await resolverPliego(ejecutora, MODO);
       nombreEntidad = resuelto.pliego;
       nivelGobierno = resuelto.nivel;
+    } else if (codigoUE) {
+      // Búsqueda por código: resolver el nombre oficial + depto + provincia
+      // (así el ranking y el reporte usan los valores exactos del MEF).
+      setLoading('Identificando la Unidad Ejecutora por código...', `SEC_EJEC: ${codigoUE}`);
+      const ue = await resolverUEporCodigo(codigoUE);
+      if (!ue) throw new Error(
+        `No se encontró ninguna Unidad Ejecutora con el código SEC_EJEC ${codigoUE} en el MEF (año ${ANO}).\n\n` +
+        `Verifica el código en la Consulta Amigable del MEF.`
+      );
+      nombreEntidad = ue.nombre;
+      departamento  = ue.departamento;
+      provincia     = ue.provincia;
     }
 
     setLoading(esAgregado ? 'Buscando inversiones de todas las UE en Datos Abiertos MEF...' : 'Buscando inversiones en Datos Abiertos MEF...', `${esAgregado ? 'Pliego' : 'Ejecutora'}: ${nombreEntidad}`);
     const registros = esAgregado
       ? await fetchMEFCUIsPorPliego(nombreEntidad)
-      : await fetchMEFCUIs(nombreEntidad, departamento);
+      : await fetchMEFCUIs(nombreEntidad, departamento, codigoUE || null);
 
     if (!registros || registros.length === 0) {
       throw new Error(
@@ -1288,6 +1342,9 @@ async function iniciarDiagnostico() {
 }
 
 document.getElementById('inputEjecutora').addEventListener('keydown', e => {
+  if (e.key === 'Enter') iniciarDiagnostico();
+});
+document.getElementById('inputCodigoUE').addEventListener('keydown', e => {
   if (e.key === 'Enter') iniciarDiagnostico();
 });
 
