@@ -2826,11 +2826,15 @@ function dibujarTarjetaInversion(st, o) {
   const ueiLines = o.uei ? st.doc.splitTextToSize(`UEI: ${o.uei}`, w - 34) : [];
   const ueiH = ueiLines.length ? ueiLines.length * 3.6 + 1.5 : 0;
 
-  // Beneficiarios directos (conteo, no soles). Solo se dibuja si hay valor > 0
-  // (las IOARR suelen tener 0). Su alto se reserva en totalH más abajo.
-  const benefNum = o.beneficiarios != null ? Number(o.beneficiarios) : null;
-  const benefTxt = (benefNum && benefNum > 0) ? benefNum.toLocaleString('es-PE') : null;
-  const benefH   = benefTxt ? 4.5 : 0;
+  // Info extra por inversión (pedido): costo total actualizado + costo total
+  // viable + beneficiarios. Se dibujan como líneas bajo la UEI; su alto se
+  // reserva en totalH más abajo. `costo` = o.costo_actualizado (definido arriba).
+  const benefNum    = o.beneficiarios != null ? Number(o.beneficiarios) : null;
+  const costoViable = Number(o.costo_viable) || 0;
+  const infoLines = [`Costo total de la inversión actualizado: ${fmtMpp(costo)}`];
+  if (costoViable > 0)            infoLines.push(`Costo total de inversión viable: ${fmtMpp(costoViable)}`);
+  if (benefNum && benefNum > 0)   infoLines.push(`Beneficiarios directos: ${benefNum.toLocaleString('es-PE')}`);
+  const infoH = infoLines.length * 4;
 
   st.doc.setFont('helvetica', 'normal'); st.doc.setFontSize(8.3);
   const descHeights = o._alertas.map(a => {
@@ -2843,7 +2847,7 @@ function dibujarTarjetaInversion(st, o) {
   const progH     = avFin !== null ? 13 : 6.5;
   const badgesH   = o._alertas.length ? 7 : 0;
   const paddingV  = 10;
-  const totalH = paddingV + nombreH + ueiH + benefH + 3 + kpiRowH + 3 + progH + 2 + badgesH + descTotalH + 4;
+  const totalH = paddingV + nombreH + ueiH + infoH + 3 + kpiRowH + 3 + progH + 2 + badgesH + descTotalH + 4;
 
   pdfEnsureSpace(st, totalH);
   const yStart = st.y;
@@ -2862,10 +2866,10 @@ function dibujarTarjetaInversion(st, o) {
     ueiLines.forEach((line, i) => st.doc.text(line, x + 2, cy + i * 3.6));
     cy += ueiH;
   }
-  if (benefTxt) {
-    pdfSetFont(st, 'bold', 7.8, PDF_COLORS.navy);
-    st.doc.text(`Beneficiarios directos: ${benefTxt}`, x + 2, cy + 1);
-    cy += benefH;
+  if (infoLines.length) {
+    pdfSetFont(st, 'bold', 7.6, PDF_COLORS.navy);
+    infoLines.forEach((line, i) => st.doc.text(line, x + 2, cy + 1 + i * 4));
+    cy += infoH;
   }
   cy += 3;
 
