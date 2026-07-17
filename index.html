@@ -1951,14 +1951,21 @@ async function abrirPopupDetalle(obra) {
   const costo   = Number(obra.costo_actualizado) || 0;
   const pendEjec  = pim - devAno;
   const pendCierre = costo - devAcum;
+  // Beneficiarios directos (conteo de personas, no soles) — viene de la ficha
+  // de detalle del SSI (traeDetInvSSI). Las IOARR suelen tener 0 → "—".
+  const benef    = obra.beneficiarios != null ? Number(obra.beneficiarios) : null;
+  const benefTxt = (benef && benef > 0) ? benef.toLocaleString('es-PE') : '—';
+  const costoViable = obra.costo_viable != null ? Number(obra.costo_viable) : 0;
 
   document.getElementById('pp-fin').innerHTML = [
-    { label: 'Costo de inversión', val: fmtMpp(costo), cls: '' },
+    { label: 'Costo total de la inversión actualizado', val: fmtMpp(costo), cls: '' },
+    { label: 'Costo total de inversión viable',         val: fmtMpp(costoViable), cls: '' },
     { label: 'PIM año vigente',    val: fmtMpp(pim),   cls: 'gold' },
     { label: 'Certificado',        val: fmtMpp(cert),  cls: '' },
     { label: 'Comprometido',       val: fmtMpp(comp),  cls: '' },
     { label: 'Devengado año',      val: fmtMpp(devAno),cls: 'green' },
     { label: 'Dev. acumulado',     val: fmtMpp(devAcum),cls:'green' },
+    { label: '👥 Beneficiarios',   val: benefTxt,      cls: '' },
   ].map(c => `<div class="pp-fc"><p class="pp-fc-label">${c.label}</p><p class="pp-fc-val ${c.cls}">${c.val}</p></div>`).join('');
 
   const pctCert = pim > 0 ? Math.min(100, (cert / pim) * 100) : 0;
@@ -2819,6 +2826,12 @@ function dibujarTarjetaInversion(st, o) {
   const ueiLines = o.uei ? st.doc.splitTextToSize(`UEI: ${o.uei}`, w - 34) : [];
   const ueiH = ueiLines.length ? ueiLines.length * 3.6 + 1.5 : 0;
 
+  // Beneficiarios directos (conteo, no soles). Solo se dibuja si hay valor > 0
+  // (las IOARR suelen tener 0). Su alto se reserva en totalH más abajo.
+  const benefNum = o.beneficiarios != null ? Number(o.beneficiarios) : null;
+  const benefTxt = (benefNum && benefNum > 0) ? benefNum.toLocaleString('es-PE') : null;
+  const benefH   = benefTxt ? 4.5 : 0;
+
   st.doc.setFont('helvetica', 'normal'); st.doc.setFontSize(8.3);
   const descHeights = o._alertas.map(a => {
     if (!a.desc) return 0;
@@ -2830,7 +2843,7 @@ function dibujarTarjetaInversion(st, o) {
   const progH     = avFin !== null ? 13 : 6.5;
   const badgesH   = o._alertas.length ? 7 : 0;
   const paddingV  = 10;
-  const totalH = paddingV + nombreH + ueiH + 3 + kpiRowH + 3 + progH + 2 + badgesH + descTotalH + 4;
+  const totalH = paddingV + nombreH + ueiH + benefH + 3 + kpiRowH + 3 + progH + 2 + badgesH + descTotalH + 4;
 
   pdfEnsureSpace(st, totalH);
   const yStart = st.y;
@@ -2848,6 +2861,11 @@ function dibujarTarjetaInversion(st, o) {
     pdfSetFont(st, 'normal', 7.5, PDF_COLORS.muted);
     ueiLines.forEach((line, i) => st.doc.text(line, x + 2, cy + i * 3.6));
     cy += ueiH;
+  }
+  if (benefTxt) {
+    pdfSetFont(st, 'bold', 7.8, PDF_COLORS.navy);
+    st.doc.text(`Beneficiarios directos: ${benefTxt}`, x + 2, cy + 1);
+    cy += benefH;
   }
   cy += 3;
 
@@ -3134,7 +3152,9 @@ async function generarExcelDiagnostico() {
       { header: 'Comprometido (S/)',         key: 'comp',       width: 16 },
       { header: 'Devengado (S/)',            key: 'dev',        width: 16 },
       { header: '% Ejecución PIM',           key: 'pctDev',     width: 13 },
-      { header: 'Costo actualizado (S/)',    key: 'costo',      width: 17 },
+      { header: 'Costo total de la inversión actualizado (S/)', key: 'costo',        width: 24 },
+      { header: 'Costo total de inversión viable (S/)',         key: 'costoViable',  width: 22 },
+      { header: 'Beneficiarios',                                key: 'beneficiarios', width: 14 },
       { header: 'Devengado acumulado (S/)',  key: 'devAcum',    width: 18 },
       { header: 'Alertas',                   key: 'alertas',    width: 40 },
       { header: 'Fecha inicio ejecución',    key: 'fIni',       width: 16 },
@@ -3153,11 +3173,15 @@ async function generarExcelDiagnostico() {
         avFin: o.avance_financiero != null ? Number(Number(o.avance_financiero).toFixed(1)) : null,
         pim, cert: Number(o.certificado_ano_vigente) || 0, comp: Number(o.comprometido_ano_vigente) || 0,
         dev, pctDev: pim > 0 ? Number((dev / pim * 100).toFixed(1)) : 0,
-        costo: Number(o.costo_actualizado) || 0, devAcum: Number(o.dev_acumulado) || 0,
+        costo: Number(o.costo_actualizado) || 0,
+        costoViable: Number(o.costo_viable) || 0,
+        beneficiarios: (o.beneficiarios != null && Number(o.beneficiarios) > 0) ? Number(o.beneficiarios) : null,
+        devAcum: Number(o.dev_acumulado) || 0,
         alertas: o._alertas.map(a => a.texto).join(', '),
         fIni: o.fecha_inicio_ejecucion || '', fFin: o.fecha_fin_ejecucion || '',
       });
-      ['pim', 'cert', 'comp', 'dev', 'costo', 'devAcum'].forEach(k => { row.getCell(k).numFmt = '#,##0.00'; });
+      ['pim', 'cert', 'comp', 'dev', 'costo', 'costoViable', 'devAcum'].forEach(k => { row.getCell(k).numFmt = '#,##0.00'; });
+      row.getCell('beneficiarios').numFmt = '#,##0';
       ['avFis', 'avFin', 'pctDev'].forEach(k => { row.getCell(k).numFmt = '0.0"%"'; });
       if (nivelMasAlto) {
         const bg = nivelMasAlto === 'rojo' ? EXCEL_COLORS.rojoBg : EXCEL_COLORS.amberBg;

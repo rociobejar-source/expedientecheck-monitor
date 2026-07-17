@@ -457,13 +457,14 @@
               <th>Días</th>
               <th>Municipio</th>
               <th>Proyecto</th>
+              <th>Beneficiarios</th>
               <th>Tipo de alerta</th>
               <th>Nivel</th>
               <th>Desde</th>
             </tr>
           </thead>
           <tbody id="tbody-cronicas">
-            <tr><td colspan="6" class="loading">Cargando…</td></tr>
+            <tr><td colspan="7" class="loading">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -1158,6 +1159,7 @@
             <b style="color:var(--text);">${tasa}% resueltas</b> (${m.resueltas}/${m.alertas_generadas}) · ${m.activas_ahora} activas
             ${m.rojas_activas > 0 ? ` · <span style="color:var(--rojo);font-weight:600;">${m.rojas_activas} rojas</span>` : ''}<br>
             ${m.dias_promedio_resolucion != null ? `Resuelve en ${m.dias_promedio_resolucion} días en promedio` : 'Sin resoluciones aún'}
+            ${m.beneficiarios_total ? `<br>👥 <b style="color:var(--text);">${Number(m.beneficiarios_total).toLocaleString('es-PE')}</b> beneficiarios` : ''}
           </div>`;
         gridEfi.appendChild(card);
       });
@@ -1167,7 +1169,7 @@
       const tbodyCro = document.getElementById('tbody-cronicas');
       const cro = cronicasFiltradas();
       if (!cro.length) {
-        tbodyCro.innerHTML = '<tr><td colspan="6"><div class="empty-state">🎉 Sin alertas de más de 30 días sin resolver</div></td></tr>'; return;
+        tbodyCro.innerHTML = '<tr><td colspan="7"><div class="empty-state">🎉 Sin alertas de más de 30 días sin resolver</div></td></tr>'; return;
       }
       tbodyCro.innerHTML = '';
       cro.forEach(a => {
@@ -1179,6 +1181,7 @@
           <td><span class="dias-badge">${a.dias_sin_resolver} d</span></td>
           <td>${cortoMuni(a.entidad_nombre)}</td>
           <td><div class="obra-nombre">${esc(a.nombre_proyecto || a.codigo_unico)}</div></td>
+          <td style="text-align:right;">${(a.beneficiarios != null && Number(a.beneficiarios) > 0) ? Number(a.beneficiarios).toLocaleString('es-PE') : '—'}</td>
           <td>${esc(a.tipo_alerta || '')}</td>
           <td><span class="nivel-dot" style="background:${NIVEL_COLOR[a.nivel] || '#999'};"></span>${esc(a.nivel || '')}</td>
           <td style="color:var(--muted);font-size:12px;">${desde}</td>`;

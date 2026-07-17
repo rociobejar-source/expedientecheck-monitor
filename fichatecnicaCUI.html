@@ -388,7 +388,9 @@ body{background:var(--bg);font-family:var(--sans);font-size:13px;color:var(--tex
       <div class="ic"><div class="ic-lbl">Inicio contractual</div><div class="ic-val mono" id="d-fi">18/06/2025</div></div>
       <div class="ic"><div class="ic-lbl">Fin contractual</div><div class="ic-val mono" id="d-ff">31/03/2026</div></div>
       <div class="ic"><div class="ic-lbl">PIM 2026</div><div class="ic-val mono" id="d-inv-aprobada">—</div></div>
-      <div class="ic"><div class="ic-lbl">Costo de obra</div><div class="ic-val mono" id="d-costo-obra">—</div></div>
+      <div class="ic"><div class="ic-lbl">Costo total de la inversión actualizado</div><div class="ic-val mono" id="d-costo-obra">—</div></div>
+      <div class="ic"><div class="ic-lbl">Costo total de inversión viable</div><div class="ic-val mono" id="d-costo-viable">—</div></div>
+      <div class="ic"><div class="ic-lbl">Beneficiarios</div><div class="ic-val mono" id="d-beneficiarios">—</div></div>
       <div class="ic"><div class="ic-lbl">Saldo por culminar</div><div class="ic-val mono" id="d-saldo-pendiente">—</div></div>
     </div>
 
@@ -1546,7 +1548,7 @@ async function cargarDatosObra() {
       // Fallback a Supabase
       const { data: ssiRow } = await _supabase
         .from('ssi_inversiones')
-        .select('nombre_inversion, costo_actualizado, pim_ano_vigente, dev_acumulado, devengado_2026')
+        .select('nombre_inversion, costo_actualizado, mto_viable, beneficiarios, pim_ano_vigente, dev_acumulado, devengado_2026')
         .eq('codigo_unico', cuiActual)
         .maybeSingle();
       json = { ssi: ssiRow };
@@ -1570,6 +1572,8 @@ async function cargarDatosObra() {
       cui:            cuiActual,
       nombre:         ssi.nombre_inversion || 'Sin nombre',
       costo_proyecto: Number(ssi.costo_actualizado) || 0,
+      costo_viable:   Number(ssi.mto_viable) || 0,
+      beneficiarios:  ssi.beneficiarios != null ? Number(ssi.beneficiarios) : null,
       pim_2026:       Number(ssi.pim_ano_vigente)   || 0,
       dev_acumulado:  Number(ssi.dev_acumulado)      || 0,
       devengado_2026: Number(ssi.devengado_2026)     || 0,
@@ -1611,6 +1615,10 @@ function rellenarFormulario() {
   // Mostrar en display
   document.getElementById('d-inv-aprobada').textContent = 'S/ ' + invAprobada.toLocaleString('es-PE', {minimumFractionDigits:2});
   document.getElementById('d-costo-obra').textContent = 'S/ ' + costoObra.toLocaleString('es-PE', {minimumFractionDigits:2});
+  const costoViable = obra.costo_viable || 0;
+  document.getElementById('d-costo-viable').textContent = costoViable > 0 ? 'S/ ' + costoViable.toLocaleString('es-PE', {minimumFractionDigits:2}) : '—';
+  const benefFicha = obra.beneficiarios != null ? Number(obra.beneficiarios) : null;
+  document.getElementById('d-beneficiarios').textContent = (benefFicha && benefFicha > 0) ? benefFicha.toLocaleString('es-PE') : '—';
   document.getElementById('d-saldo-pendiente').textContent = 'S/ ' + saldoPendiente.toLocaleString('es-PE', {minimumFractionDigits:2});
 
   // ── EJ — EJECUCIÓN ──
